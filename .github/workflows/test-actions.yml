@@ -109,5 +109,5 @@ jobs:
       - name: Verify deployment
         shell: pwsh
         run: |
-          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-TestDeployment.ps1"
-          & $scriptPath -DestinationPath "C:\temp\deploy-test" -SourcePath "test-source"
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-DeploymentResults.ps1"
+          & $scriptPath -DestinationPath "C:\temp\deploy-test"

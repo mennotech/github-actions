@@ -35,8 +35,8 @@ jobs:
         id: import-cert
         uses: ./import-codesigning-cert-windows
         with:
-          pfx_base64: ${{ env.PFX_BASE64 }}
-          pfx_password: ${{ env.PFX_PASSWORD }}
+          pfx_base64: ${{ env.TEST_PFX_BASE64 }}
+          pfx_password: ${{ env.TEST_PFX_PASSWORD }}
 
       - name: Verify certificate import
         shell: pwsh
