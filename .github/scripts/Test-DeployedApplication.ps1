@@ -25,7 +25,7 @@ $ErrorActionPreference = 'Stop'
 
 try {
     Write-Host "Testing deployed application functionality..." -ForegroundColor Cyan
-    
+
     # Test main.ps1 execution
     Write-Host "Testing main.ps1..." -ForegroundColor Yellow
     try {
@@ -34,7 +34,7 @@ try {
     } catch {
         throw "Failed to execute main.ps1: $_"
     }
-    
+
     # Test helper script with module import
     Write-Host "Testing helper.ps1 with module import..." -ForegroundColor Yellow
     try {
@@ -43,9 +43,9 @@ try {
     } catch {
         throw "Failed to execute helper.ps1: $_"
     }
-    
+
     Write-Host "[OK] All deployed scripts execute correctly" -ForegroundColor Green
-    
+
 } catch {
     Write-Error "Failed to test deployed application: $_"
     exit 1

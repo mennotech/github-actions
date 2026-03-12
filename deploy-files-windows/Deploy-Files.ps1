@@ -28,7 +28,7 @@
 
 .EXAMPLE
     Deploy-Scripts.ps1 -DestinationPath "C:\Scripts\exchange-apply-address-book-policy"
-    
+
 .EXAMPLE
     Deploy-Scripts.ps1 -SourcePath "." -DestinationPath "C:\Scripts\MyApp" -ExcludeDirs @(".git", ".github")
 #>
@@ -37,13 +37,13 @@
 param(
     [Parameter()]
     [string]$SourcePath = $PWD,
-    
+
     [Parameter()]
     [string]$DestinationPath = ($env:DESTINATION_PATH ? $env:DESTINATION_PATH : (throw "DestinationPath parameter is required. Provide DESTINATION_PATH environment variable or use -DestinationPath parameter.")),
-    
+
     [Parameter()]
     [string[]]$ExcludeDirs = ($env:EXCLUDE_DIRS ? $env:EXCLUDE_DIRS -split ',' : @(".git", ".github", "_work", "logs")),
-    
+
     [Parameter()]
     [string[]]$ExcludeFiles = ($env:EXCLUDE_FILES ? $env:EXCLUDE_FILES -split ',' : @("*.crt", "Config.json")),
 
@@ -55,7 +55,7 @@ param(
         "/NFL",    # Don't log file names (reduces noise)
         "/NP"      # Don't show progress percentage
     )),
-    
+
     [Parameter()]
     [switch]$TestOnly
 )
@@ -73,7 +73,7 @@ try {
     Write-Host "  Resolved Source: $($resolvedSource.Path)" -ForegroundColor Gray
 
     # Create destination directory if it doesn't exist
-    if (!(Test-Path $DestinationPath)) { 
+    if (!(Test-Path $DestinationPath)) {
         Write-Host "Creating destination directory: $DestinationPath" -ForegroundColor Yellow
         try {
             New-Item -ItemType Directory -Path $DestinationPath -Force | Out-Null
@@ -148,7 +148,7 @@ try {
         3 { "Some files copied, some extra files detected" }
         4 { "Some mismatched files or directories detected" }
         5 { "Some files copied, some mismatched files detected" }
-        6 { "Additional files and mismatched files exist" }  
+        6 { "Additional files and mismatched files exist" }
         7 { "Files copied, additional and mismatched files exist" }
         8 { "Several files did not copy" }
         default { "Error occurred during copy operation" }
@@ -158,7 +158,7 @@ try {
     $resultColor = if ($exitCode -eq 0 -or $exitCode -eq 1) { 'Green' }
                    elseif ($exitCode -le 3) { 'Yellow' }
                    else { 'Red' }
-    
+
     Write-Host "Result: $interpretation" -ForegroundColor $resultColor
 
     if ($TestOnly) {
@@ -173,7 +173,7 @@ try {
     }
 
     # Handle errors
-    if ($exitCode -ge 8) { 
+    if ($exitCode -ge 8) {
         throw "Robocopy failed with exit code $exitCode. $interpretation"
     }
 

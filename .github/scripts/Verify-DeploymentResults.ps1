@@ -68,8 +68,9 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function Get-DeploySignatureFiles {
+function Get-DeploySignatureFile {
     [CmdletBinding()]
+    [OutputType([System.IO.FileInfo[]])]
     param(
         [Parameter(Mandatory)]
         [string]$Path,
@@ -85,7 +86,7 @@ function Get-DeploySignatureFiles {
         Get-ChildItem -Path $Path -Filter $pattern -File -Recurse
     }
 
-    return @($files | Where-Object {
+    return [System.IO.FileInfo[]]@($files | Where-Object {
         $fullPath = $_.FullName
         foreach ($excludedDirectory in $ExcludedDirectories) {
             if ($fullPath -match [regex]::Escape("\\$excludedDirectory\\")) {
@@ -131,7 +132,7 @@ try {
     }
 
     if ($VerifySignatures) {
-        $signatureFiles = Get-DeploySignatureFiles -Path $DestinationPath -Patterns $SignaturePatterns -ExcludedDirectories $SignatureExcludeDirs
+        $signatureFiles = Get-DeploySignatureFile -Path $DestinationPath -Patterns $SignaturePatterns -ExcludedDirectories $SignatureExcludeDirs
         if ($signatureFiles.Count -eq 0) {
             throw 'No deployed PowerShell files found for signature verification'
         }

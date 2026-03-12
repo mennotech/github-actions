@@ -53,8 +53,9 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function Get-TargetFiles {
+function Get-TargetFile {
     [CmdletBinding()]
+    [OutputType([System.IO.FileInfo[]])]
     param(
         [Parameter(Mandatory)]
         [string]$SearchPath,
@@ -71,10 +72,10 @@ function Get-TargetFiles {
     }
 
     if ($ExcludedDirectories.Count -eq 0) {
-        return @($files)
+        return [System.IO.FileInfo[]]@($files)
     }
 
-    return @($files | Where-Object {
+    return [System.IO.FileInfo[]]@($files | Where-Object {
         $fullPath = $_.FullName
         foreach ($excludedDirectory in $ExcludedDirectories) {
             if ($fullPath -match [regex]::Escape("\\$excludedDirectory\\")) {
@@ -89,7 +90,7 @@ function Get-TargetFiles {
 try {
     Write-Host "Verifying PowerShell file signatures..." -ForegroundColor Yellow
 
-    $files = Get-TargetFiles -SearchPath $Path -Patterns $IncludePatterns -ExcludedDirectories $ExcludeDirs
+    $files = Get-TargetFile -SearchPath $Path -Patterns $IncludePatterns -ExcludedDirectories $ExcludeDirs
     if ($files.Count -eq 0) {
         throw "No matching PowerShell files found in $Path"
     }

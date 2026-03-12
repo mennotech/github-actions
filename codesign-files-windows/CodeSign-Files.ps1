@@ -11,7 +11,7 @@
     Root path to search for PowerShell files. Defaults to current directory.
 
 .PARAMETER TimestampServer
-    URL of the timestamp server for timestamping signatures. 
+    URL of the timestamp server for timestamping signatures.
     Default is http://timestamp.digicert.com
 
 .PARAMETER Recurse
@@ -34,7 +34,7 @@
 
 .EXAMPLE
     Sign-PowerShellFiles.ps1 -CleanupCertificate
-    
+
 .EXAMPLE
     Sign-PowerShellFiles.ps1 -Path "C:\Scripts" -CertThumbprint "ABC123..." -CleanupCertificate
 #>
@@ -43,22 +43,22 @@
 param(
     [Parameter()]
     [string]$Path = $env:GITHUB_WORKSPACE ? $env:GITHUB_WORKSPACE : ".",
-    
+
     [Parameter()]
     [string]$TimestampServer = ($env:TIMESTAMP_SERVER) ? $env:TIMESTAMP_SERVER : "http://timestamp.digicert.com",
-    
+
     [Parameter()]
     [switch]$Recurse,
 
     [Parameter()]
     [array]$FileMatch = $env:FILE_MATCH ? $env:FILE_MATCH -split ',' : @("*.ps1", "*.psm1", "*.psd1"),
-    
+
     [Parameter()]
     [string[]]$ExcludeDirs = $env:EXCLUDE_DIRS ? $env:EXCLUDE_DIRS -split ',' : @(".git", ".github"),
-    
+
     [Parameter()]
     [string]$CertThumbprint = $env:IMPORTED_CERT_THUMBPRINT,
-    
+
     [Parameter()]
     [switch]$CleanupCertificate,
 
@@ -77,12 +77,12 @@ function Main {
 
     try {
         Write-Host "Starting PowerShell file signing process..." -ForegroundColor Cyan
-        
+
         # Find all PowerShell files to sign
-        $files = Find-PowerShellFiles -Path $Path -Recurse:$Recurse -FileMatch $FileMatch -ExcludeDirs $ExcludeDirs
-        
+        $files = Find-PowerShellFile -Path $Path -Recurse:$Recurse -FileMatch $FileMatch -ExcludeDirs $ExcludeDirs
+
         if ($TestOnly) {
-            $null = Test-PowerShellFileSignatures -Files $files -FailOnInvalid:$FailOnInvalid
+            $null = Test-PowerShellFileSignature -Files $files -FailOnInvalid:$FailOnInvalid
         } else {
             # Get the code-signing certificate
             $cert = Get-CodeSigningCertificate -CertThumbprint $CertThumbprint
@@ -94,7 +94,7 @@ function Main {
             $null = Invoke-PowerShellFileSigning -Files $files -Certificate $cert -TimestampServer $TimestampServer
         }
 
-        
+
     } catch {
         Write-Error "PowerShell file signing failed: $_"
         exit 1
@@ -122,7 +122,7 @@ function Get-CodeSigningCertificate {
     <#
     .SYNOPSIS
         Retrieves a code-signing certificate from the certificate store.
-    
+
     .PARAMETER CertThumbprint
         Specific certificate thumbprint to retrieve. If not provided, gets the first available code-signing certificate.
     #>
@@ -139,8 +139,8 @@ function Get-CodeSigningCertificate {
         }
     } else {
         $cert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert | Select-Object -First 1
-        if (-not $cert) { 
-            throw "No code-signing certificate available in Cert:\CurrentUser\My" 
+        if (-not $cert) {
+            throw "No code-signing certificate available in Cert:\CurrentUser\My"
         }
     }
 
@@ -148,34 +148,35 @@ function Get-CodeSigningCertificate {
     return $cert
 }
 
-function Find-PowerShellFiles {
+function Find-PowerShellFile {
     <#
     .SYNOPSIS
         Finds PowerShell files in the specified path.
-    
+
     .PARAMETER Path
         Root path to search for PowerShell files.
-        
+
     .PARAMETER Recurse
         Search recursively in subdirectories.
-        
+
     .PARAMETER FileMatch
         Array of file patterns to match.
-        
+
     .PARAMETER ExcludeDirs
         Array of directory names to exclude from search.
     #>
     [CmdletBinding()]
+    [OutputType([System.IO.FileInfo[]])]
     param(
         [Parameter(Mandatory)]
         [string]$Path,
-        
+
         [Parameter()]
         [switch]$Recurse,
-        
+
         [Parameter()]
         [array]$FileMatch = @("*.ps1", "*.psm1", "*.psd1"),
-        
+
         [Parameter()]
         [string[]]$ExcludeDirs = @()
     )
@@ -196,7 +197,7 @@ function Find-PowerShellFiles {
     $files = @()
     foreach ($pattern in $FileMatch) {
         $foundFiles = Get-ChildItem @searchParams -Filter $pattern
-        
+
         # Filter out files in excluded directories
         if ($ExcludeDirs.Count -gt 0) {
             $foundFiles = $foundFiles | Where-Object {
@@ -212,45 +213,46 @@ function Find-PowerShellFiles {
                 -not $isExcluded
             }
         }
-        
+
         $files += $foundFiles
     }
 
-    if ($files.Count -eq 0) { 
-        throw "No PowerShell files found to sign in path: $Path" 
+    if ($files.Count -eq 0) {
+        throw "No PowerShell files found to sign in path: $Path"
     }
 
     Write-Host "Found $($files.Count) PowerShell file(s)" -ForegroundColor Gray
     return $files
 }
 
-function Test-PowerShellFileSignatures {
+function Test-PowerShellFileSignature {
     <#
     .SYNOPSIS
         Tests the digital signatures of PowerShell files and provides a detailed report.
-    
+
     .PARAMETER Files
         Array of FileInfo objects representing the PowerShell files to test.
-        
+
     .PARAMETER FailOnInvalid
         Throw an error if any files have invalid signatures.
     #>
     [CmdletBinding()]
+    [OutputType([System.Collections.Hashtable])]
     param(
         [Parameter(Mandatory)]
         [System.IO.FileInfo[]]$Files,
-        
+
         [Parameter()]
         [switch]$FailOnInvalid
     )
 
     $validSignatures = @()
     $invalidSignatures = @()
-    
+
     foreach ($file in $Files) {
         try {
             $sig = Get-AuthenticodeSignature -FilePath $file.FullName
-            
+
             if ($sig.Status -eq 'Valid') {
                 Write-Host "$($file.Name)" -ForegroundColor Green
                 $validSignatures += [PSCustomObject]@{
@@ -264,7 +266,7 @@ function Test-PowerShellFileSignatures {
                 if ($sig.StatusMessage) {
                     Write-Warning "    Message: $($sig.StatusMessage)"
                 }
-                
+
                 $invalidSignatures += [PSCustomObject]@{
                     File = $file.FullName
                     Status = $sig.Status
@@ -315,24 +317,25 @@ function Invoke-PowerShellFileSigning {
     <#
     .SYNOPSIS
         Signs PowerShell files with the specified certificate and timestamp server.
-    
+
     .PARAMETER Files
         Array of FileInfo objects representing the PowerShell files to sign.
-        
+
     .PARAMETER Certificate
         The code-signing certificate to use for signing.
-        
+
     .PARAMETER TimestampServer
         URL of the timestamp server for timestamping signatures.
     #>
     [CmdletBinding()]
+    [OutputType([System.Collections.Hashtable])]
     param(
         [Parameter(Mandatory)]
         [System.IO.FileInfo[]]$Files,
-        
+
         [Parameter(Mandatory)]
         [System.Security.Cryptography.X509Certificates.X509Certificate2]$Certificate,
-        
+
         [Parameter()]
         [string]$TimestampServer = "http://timestamp.digicert.com"
     )
@@ -341,13 +344,13 @@ function Invoke-PowerShellFileSigning {
 
     $signedCount = 0
     $failedCount = 0
-    
+
     foreach ($file in $Files) {
         try {
             Write-Host "Signing: $($file.Name)" -ForegroundColor Yellow
-            
+
             $sig = Set-AuthenticodeSignature -FilePath $file.FullName -Certificate $Certificate -TimestampServer $TimestampServer
-            
+
             if ($sig.Status -in $acceptableStatuses -and $sig.SignerCertificate -and $sig.SignerCertificate.Thumbprint -eq $Certificate.Thumbprint) {
                 Write-Host "  Success" -ForegroundColor Green
                 $signedCount++
@@ -371,7 +374,7 @@ function Invoke-PowerShellFileSigning {
     }
 
     Write-Host "All PowerShell files signed successfully" -ForegroundColor Green
-    
+
     return @{
         SignedCount = $signedCount
         FailedCount = $failedCount

@@ -30,7 +30,7 @@ $ErrorActionPreference = 'Stop'
 
 try {
     Write-Host "Cleaning up integration test resources..." -ForegroundColor Yellow
-    
+
     # Clean up imported certificates if any
     if ($env:IMPORTED_CERT_THUMBPRINT) {
         Write-Host "Removing imported test certificate: $env:IMPORTED_CERT_THUMBPRINT" -ForegroundColor Gray
@@ -55,7 +55,7 @@ try {
         }
         $env:IMPORTED_CERT_THUMBPRINT = $null
     }
-    
+
     $pathsToRemove = @($TestPath, $DeployPath)
     foreach ($pathToRemove in $pathsToRemove) {
         if (Test-Path $pathToRemove) {
@@ -74,7 +74,7 @@ try {
         $pfxFiles | Remove-Item -Force
         Write-Host "[OK] Removed $($pfxFiles.Count) .pfx files" -ForegroundColor Green
     }
-    
+
     # Remove any other temporary test files
     $tempFiles = @("test-cert.pfx", "test-output.txt", "integration-results.json")
     foreach ($tempFile in $tempFiles) {
@@ -83,9 +83,9 @@ try {
             Write-Host "[OK] Removed temporary file: $tempFile" -ForegroundColor Green
         }
     }
-    
+
     Write-Host "[OK] Integration test cleanup completed successfully" -ForegroundColor Green
-    
+
 } catch {
     Write-Error "Failed to clean up integration test resources: $_"
     exit 1

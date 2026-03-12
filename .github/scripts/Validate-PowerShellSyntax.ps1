@@ -40,6 +40,7 @@ $ErrorActionPreference = 'Stop'
 
 function Invoke-RepositoryScriptAnalyzer {
     [CmdletBinding()]
+    [OutputType([System.Object[]])]
     param(
         [Parameter(Mandatory)]
         [string]$SettingsPath,
@@ -81,26 +82,26 @@ function Invoke-RepositoryScriptAnalyzer {
 
 try {
     Write-Host "Validating PowerShell syntax..." -ForegroundColor Yellow
-    
+
     # Find all PowerShell files
     $psFiles = Get-ChildItem -Path "." -Include "*.ps1", "*.psm1", "*.psd1" -Recurse | Where-Object {
         $_.FullName -notmatch '\\\.git\\'
     }
-    
+
     Write-Host "Found $($psFiles.Count) PowerShell files to validate" -ForegroundColor Gray
-    
+
     if ($psFiles.Count -eq 0) {
         Write-Host "[Warning] No PowerShell files found to validate" -ForegroundColor Yellow
         return
     }
-    
+
     $hasErrors = $false
     $errorCount = 0
     $warningCount = 0
-    
+
     foreach ($file in $psFiles) {
         Write-Host "Validating: $($file.Name)" -ForegroundColor Gray
-        
+
         try {
             # Parse the PowerShell file
             $tokens = $null
@@ -108,7 +109,7 @@ try {
             [void][System.Management.Automation.Language.Parser]::ParseFile(
                 $file.FullName, [ref]$tokens, [ref]$errors
             )
-            
+
             if ($errors.Count -eq 0) {
                 Write-Host "[OK] $($file.Name) - syntax valid" -ForegroundColor Green
             } else {
@@ -119,7 +120,7 @@ try {
                 }
                 $hasErrors = $true
             }
-            
+
             if ($file.Extension -in @('.ps1', '.psm1')) {
                 # Check for common PowerShell best practices
                 $content = Get-Content -Path $file.FullName -Raw
@@ -136,14 +137,14 @@ try {
                     $warningCount++
                 }
             }
-            
+
         } catch {
             Write-Host "[ERROR] $($file.Name): Failed to parse - $_" -ForegroundColor Red
             $hasErrors = $true
             $errorCount++
         }
     }
-    
+
     Write-Host "`nValidation Summary:" -ForegroundColor Cyan
     Write-Host "  PowerShell files: $($psFiles.Count)" -ForegroundColor Gray
     Write-Host "  Syntax errors: $errorCount" -ForegroundColor Gray
@@ -159,7 +160,7 @@ try {
         $scriptAnalyzerResults = @(Invoke-RepositoryScriptAnalyzer -SettingsPath $ScriptAnalyzerSettingsPath -RequireModule:$RequireScriptAnalyzer)
         Write-Host "  Lint issues: $($scriptAnalyzerResults.Count)" -ForegroundColor Gray
     }
-    
+
     if ($scriptAnalyzerResults.Count -gt 0) {
         Write-Host "`n[ERROR] PowerShell lint validation failed" -ForegroundColor Red
         exit 1
@@ -172,7 +173,7 @@ try {
     if ($warningCount -gt 0) {
         Write-Host "Note: $warningCount warnings found (non-blocking)" -ForegroundColor Yellow
     }
-    
+
 } catch {
     Write-Error "Failed to validate PowerShell syntax: $_"
     exit 1
