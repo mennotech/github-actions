@@ -1,0 +1,45 @@
+name: 'Deploy Files Windows'
+description: 'Deploy files to target directory using robocopy with intelligent exclusions and permission validation'
+inputs:
+  source_path:
+    description: 'Source directory to copy from'
+    required: false
+    default: '.'
+  destination_path:
+    description: 'Target directory to copy to'
+    required: true
+  exclude_dirs:
+    description: 'Comma-separated list of directories to exclude from deployment'
+    required: false
+    default: '.git,.github,_work,logs'
+  exclude_files:
+    description: 'Comma-separated list of file patterns to exclude from deployment'
+    required: false
+    default: '*.crt,Config.json'
+  robocopy_options:
+    description: 'Comma-separated list of additional robocopy options'
+    required: false
+    default: '/R:2,/W:2,/NDL,/NFL,/NP'
+  test_only:
+    description: 'Perform a dry run to list files that would be copied without actually copying'
+    required: false
+    default: 'false'
+runs:
+  using: 'composite'
+  steps:
+    - shell: pwsh
+      env:
+        DESTINATION_PATH: ${{ inputs.destination_path }}
+        EXCLUDE_DIRS: ${{ inputs.exclude_dirs }}
+        EXCLUDE_FILES: ${{ inputs.exclude_files }}
+        ROBOCOPY_OPTIONS: ${{ inputs.robocopy_options }}
+      run: |
+        $args = @()
+        if ('${{ inputs.source_path }}' -ne '.') { 
+          $args += @('-SourcePath', '${{ inputs.source_path }}') 
+        }
+        if ('${{ inputs.test_only }}' -eq 'true') { 
+          $args += '-TestOnly' 
+        }
+        
+        & "${{ github.action_path }}/Deploy-Files.ps1" @args
