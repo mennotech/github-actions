@@ -72,37 +72,6 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$cert = $null
-
-try {
-    Write-Host "Starting PowerShell file signing process..." -ForegroundColor Cyan
-
-    $files = Find-PowerShellFile -Path $Path -Recurse:$Recurse -FileMatch $FileMatch -ExcludeDirs $ExcludeDirs
-
-    if ($TestOnly) {
-        $null = Test-PowerShellFileSignature -Files $files -FailOnInvalid:$FailOnInvalid
-    } else {
-        $cert = Get-CodeSigningCertificate -CertThumbprint $CertThumbprint
-        $null = Invoke-PowerShellFileSigning -Files $files -Certificate $cert -TimestampServer $TimestampServer
-    }
-
-} catch {
-    Write-Error "PowerShell file signing failed: $_"
-    exit 1
-} finally {
-    if ($CleanupCertificate -and $cert) {
-        try {
-            Write-Host "Cleaning up certificate: $($cert.Thumbprint)" -ForegroundColor Yellow
-            Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -Force
-            Write-Host "Certificate removed successfully" -ForegroundColor Green
-        } catch {
-            Write-Warning "Failed to remove certificate: $_"
-        }
-    }
-
-    Write-Host "PowerShell file signing process completed." -ForegroundColor Cyan
-}
-
 
 #region Helper Functions
 
@@ -314,3 +283,34 @@ function Invoke-PowerShellFileSigning {
 }
 
 #endregion
+
+$cert = $null
+
+try {
+    Write-Host "Starting PowerShell file signing process..." -ForegroundColor Cyan
+
+    $files = Find-PowerShellFile -Path $Path -Recurse:$Recurse -FileMatch $FileMatch -ExcludeDirs $ExcludeDirs
+
+    if ($TestOnly) {
+        $null = Test-PowerShellFileSignature -Files $files -FailOnInvalid:$FailOnInvalid
+    } else {
+        $cert = Get-CodeSigningCertificate -CertThumbprint $CertThumbprint
+        $null = Invoke-PowerShellFileSigning -Files $files -Certificate $cert -TimestampServer $TimestampServer
+    }
+
+} catch {
+    Write-Error "PowerShell file signing failed: $_"
+    exit 1
+} finally {
+    if ($CleanupCertificate -and $cert) {
+        try {
+            Write-Host "Cleaning up certificate: $($cert.Thumbprint)" -ForegroundColor Yellow
+            Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -Force
+            Write-Host "Certificate removed successfully" -ForegroundColor Green
+        } catch {
+            Write-Warning "Failed to remove certificate: $_"
+        }
+    }
+
+    Write-Host "PowerShell file signing process completed." -ForegroundColor Cyan
+}
