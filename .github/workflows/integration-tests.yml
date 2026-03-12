@@ -22,28 +22,30 @@ jobs:
       - name: Setup test environment
         shell: pwsh
         run: |
-          $scriptPath = "${{ github.workspace }}\.github\scripts\\Setup-IntegrationTestEnvironment.ps1"
-          & $scriptPath -ProjectPath "test-project"
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Setup-IntegrationTestEnvironment.ps1"
+          & $scriptPath -Scenario Integration -ProjectPath "test-project"
       - name: Create test code-signing certificate
         shell: pwsh
         id: create-cert
         run: |
           $scriptPath = "${{ github.workspace }}\.github\scripts\Create-TestCertificate.ps1"
-          & $scriptPath
+          & $scriptPath -Mode ExportPfx `
+          -Subject "CN=IntegrationTestCert,O=Mennotech,C=US" `
+          -Password "IntegrationTest123!"
 
       - name: Step 1 - Import Code-Signing Certificate
         id: import-cert
         uses: ./import-codesigning-cert-windows
         with:
-          pfx_base64: ${{ env.TEST_PFX_BASE64 }}
-          pfx_password: ${{ env.TEST_PFX_PASSWORD }}
+          pfx_base64: ${{ steps.create-cert.outputs.pfx_base64 }}
+          pfx_password: ${{ steps.create-cert.outputs.pfx_password }}
 
       - name: Verify certificate import
         shell: pwsh
         run: |
-          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-IntegrationCertificateImport.ps1"
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-CertificateImport.ps1"
           $thumbprint = "${{ steps.import-cert.outputs.certificate_thumbprint }}"
-          & $scriptPath -CertificateThumbprint $thumbprint
+          & $scriptPath -CertificateThumbprint $thumbprint -ExpectedEnvironmentVariableName "IMPORTED_CERT_THUMBPRINT"
 
       - name: Step 2 - Sign PowerShell Files
         uses: ./codesign-files-windows
@@ -58,8 +60,9 @@ jobs:
       - name: Verify code signing results
         shell: pwsh
         run: |
-          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-IntegrationCodeSigning.ps1"
-          & $scriptPath -ProjectPath "test-project" `
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-PowerShellSignatures.ps1"
+          & $scriptPath -Path "test-project" `
+          -ExcludeDirs ".git", ".github" `
           -ExpectedThumbprint "${{ steps.import-cert.outputs.certificate_thumbprint }}"
 
       - name: Step 3 - Deploy Files
@@ -73,8 +76,13 @@ jobs:
       - name: Verify deployment results
         shell: pwsh
         run: |
-          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-IntegrationCodeSigning.ps1"
-          & $scriptPath -ProjectPath "C:\temp\integration-test-deploy" `
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-DeploymentResults.ps1"
+          & $scriptPath -DestinationPath "C:\temp\integration-test-deploy" `
+          -ExpectedFiles `
+          "main.ps1", "config.txt", "README.md", "scripts\helper.ps1", `
+          "scripts\TestUtils.psm1", "scripts\TestUtils.psd1" `
+          -ExcludedFiles ".git\config", ".github\test.yml", "test.crt", "Config.json" `
+          -VerifySignatures `
           -ExpectedThumbprint "${{ steps.import-cert.outputs.certificate_thumbprint }}"
 
       - name: Test deployed application
@@ -88,7 +96,7 @@ jobs:
         shell: pwsh
         run: |
           $scriptPath = "${{ github.workspace }}\.github\scripts\Cleanup-IntegrationTest.ps1"
-          & $scriptPath -TestPath "test-project"
+          & $scriptPath -TestPath "test-project" -DeployPath "C:\temp\integration-test-deploy"
 
   integration-test-summary:
     name: Integration Test Summary

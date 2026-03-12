@@ -20,24 +20,25 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Create test certificate
+        id: create-import-cert
         shell: pwsh
         run: |
-          $scriptPath = "${{ github.workspace }}\.github\scripts\\Create-TestCertificateForImport.ps1"
-          & $scriptPath
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Create-TestCertificate.ps1"
+          & $scriptPath -Mode ExportPfx
 
       - name: Test Import Certificate Action
         id: import-test
         uses: ./import-codesigning-cert-windows
         with:
-          pfx_base64: ${{ env.TEST_PFX_BASE64 }}
-          pfx_password: ${{ env.TEST_PFX_PASSWORD }}
+          pfx_base64: ${{ steps.create-import-cert.outputs.pfx_base64 }}
+          pfx_password: ${{ steps.create-import-cert.outputs.pfx_password }}
 
       - name: Verify certificate import
         shell: pwsh
         run: |
-          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-CertificateImportAction.ps1"
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-CertificateImport.ps1"
           $thumbprint = "${{ steps.import-test.outputs.certificate_thumbprint }}"
-          & $scriptPath -CertificateThumbprint $thumbprint
+          & $scriptPath -CertificateThumbprint $thumbprint -CleanupCertificate
 
   test-codesign-action:
     name: Test Code Sign Action
@@ -50,14 +51,15 @@ jobs:
       - name: Create test PowerShell files
         shell: pwsh
         run: |
-          $scriptPath = "${{ github.workspace }}\.github\scripts\\Create-TestPowerShellFilesForSigning.ps1"
-          & $scriptPath -TestPath "test-scripts"
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Setup-IntegrationTestEnvironment.ps1"
+          & $scriptPath -Scenario Signing -ProjectPath "test-scripts"
 
       - name: Create test certificate and import
+        id: create-signing-cert
         shell: pwsh
         run: |
-          $scriptPath = "${{ github.workspace }}\.github\scripts\\Create-TestCertificateForCodeSigning.ps1"
-          & $scriptPath
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Create-TestCertificate.ps1"
+          & $scriptPath -Mode ImportToStore -Subject "CN=TestCodeSignCert"
 
       - name: Test Code Sign Action (Test Mode)
         uses: ./codesign-files-windows
@@ -76,9 +78,11 @@ jobs:
       - name: Verify signatures
         shell: pwsh
         run: |
-          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-CodeSigningResults.ps1"
-          $thumbprint = "${{ env.TEST_CERT_THUMBPRINT }}"
-          & $scriptPath -TestPath "test-scripts" -TestCertThumbprint $thumbprint
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-PowerShellSignatures.ps1"
+          $thumbprint = "${{ steps.create-signing-cert.outputs.certificate_thumbprint }}"
+          & $scriptPath -Path "test-scripts" `
+          -ExpectedThumbprint $thumbprint `
+          -ExpectCertificateCleanup
 
   test-deploy-action:
     name: Test Deploy Action
@@ -90,8 +94,8 @@ jobs:
       - name: Create test source structure
         shell: pwsh
         run: |
-          $scriptPath = "${{ github.workspace }}\.github\scripts\Create-TestSourceStructure.ps1"
-          & $scriptPath -SourcePath "test-source"
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Setup-IntegrationTestEnvironment.ps1"
+          & $scriptPath -Scenario Deployment -ProjectPath "test-source"
 
       - name: Test Deploy Action (Actual Deploy)
         uses: ./deploy-files-windows
@@ -110,4 +114,4 @@ jobs:
         shell: pwsh
         run: |
           $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-DeploymentResults.ps1"
-          & $scriptPath -DestinationPath "C:\temp\deploy-test"
+          & $scriptPath -DestinationPath "C:\temp\deploy-test" -CleanupDestination

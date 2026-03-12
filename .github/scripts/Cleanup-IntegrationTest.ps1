@@ -9,6 +9,9 @@
 .PARAMETER TestPath
     The path to test artifacts to clean up. Defaults to "test-project".
 
+.PARAMETER DeployPath
+    The path to the deployed integration test output.
+
 .EXAMPLE
     Cleanup-IntegrationTest.ps1 -TestPath "test-project"
 #>
@@ -16,7 +19,10 @@
 [CmdletBinding()]
 param(
     [Parameter()]
-    [string]$TestPath = "test-project"
+    [string]$TestPath = 'test-project',
+
+    [Parameter()]
+    [string]$DeployPath = 'C:\temp\integration-test-deploy'
 )
 
 Set-StrictMode -Version Latest
@@ -50,15 +56,17 @@ try {
         $env:IMPORTED_CERT_THUMBPRINT = $null
     }
     
-    # Remove test project directory
-    if (Test-Path $TestPath) {
-        Write-Host "Removing test directory: $TestPath" -ForegroundColor Gray
-        Remove-Item -Path $TestPath -Recurse -Force
-        Write-Host "[OK] Test directory removed" -ForegroundColor Green
-    } else {
-        Write-Host "[Info] Test directory not found: $TestPath" -ForegroundColor Gray
+    $pathsToRemove = @($TestPath, $DeployPath)
+    foreach ($pathToRemove in $pathsToRemove) {
+        if (Test-Path $pathToRemove) {
+            Write-Host "Removing test directory: $pathToRemove" -ForegroundColor Gray
+            Remove-Item -Path $pathToRemove -Recurse -Force
+            Write-Host "[OK] Test directory removed" -ForegroundColor Green
+        } else {
+            Write-Host "[Info] Test directory not found: $pathToRemove" -ForegroundColor Gray
+        }
     }
-    
+
     # Remove any .pfx files in current directory
     $pfxFiles = Get-ChildItem -Path "." -Filter "*.pfx" -File
     if ($pfxFiles) {

@@ -4,43 +4,124 @@
     Sets up the integration test environment with complete project structure.
 
 .DESCRIPTION
-    Creates a complete test project structure with PowerShell files, module files,
-    configuration files, and files to be excluded from deployment.
+    Creates a reusable test fixture for action tests and the integration workflow.
 
 .PARAMETER ProjectPath
-    The path where the test project should be created. Defaults to "test-project".
+    The path where the test fixture should be created.
+
+.PARAMETER Scenario
+    Selects which fixture to create.
 
 .EXAMPLE
-    Setup-IntegrationTestEnvironment.ps1 -ProjectPath "test-project"
+    Setup-IntegrationTestEnvironment.ps1 -Scenario Integration -ProjectPath "test-project"
 #>
 
 [CmdletBinding()]
 param(
     [Parameter()]
-    [string]$ProjectPath = "test-project"
+    [string]$ProjectPath = 'test-project',
+
+    [Parameter()]
+    [ValidateSet('Integration', 'Signing', 'Deployment')]
+    [string]$Scenario = 'Integration'
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-try {
-    Write-Host "Setting up integration test environment..." -ForegroundColor Cyan
-    
-    # Create test project structure  
-    New-Item -ItemType Directory -Path $ProjectPath -Force | Out-Null
-    New-Item -ItemType Directory -Path "$ProjectPath\scripts" -Force | Out-Null
-    New-Item -ItemType Directory -Path "$ProjectPath\.git" -Force | Out-Null
-    New-Item -ItemType Directory -Path "$ProjectPath\.github" -Force | Out-Null
-    
-    # Create PowerShell files to sign and deploy - main.ps1
-    $mainScript = @'
+function New-TestDirectory {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    New-Item -ItemType Directory -Path $Path -Force | Out-Null
+}
+
+function Write-TestFile {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+
+        [Parameter(Mandatory)]
+        [string]$Content
+    )
+
+    $directory = Split-Path -Path $Path -Parent
+    if ($directory) {
+        New-TestDirectory -Path $directory
+    }
+
+    Set-Content -Path $Path -Value $Content -Encoding UTF8
+}
+
+function New-SigningFixture {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    New-TestDirectory -Path $Path
+    New-TestDirectory -Path (Join-Path $Path 'subdir')
+
+    Write-TestFile -Path (Join-Path $Path 'test1.ps1') -Content @'
+# Test PowerShell script 1
+Write-Host "Hello from test script 1"
+'@
+    Write-TestFile -Path (Join-Path $Path 'test2.ps1') -Content @'
+# Test PowerShell script 2
+Write-Host "Hello from test script 2"
+'@
+    Write-TestFile -Path (Join-Path $Path 'TestModule.psm1') -Content @'
+function Test-Function {
+    Write-Host "Hello from test function"
+}
+'@
+    Write-TestFile -Path (Join-Path $Path 'subdir\test3.ps1') -Content @'
+# Test PowerShell script in subdirectory
+Write-Host "Hello from subdirectory script"
+'@
+    Write-TestFile -Path (Join-Path $Path 'readme.txt') -Content 'This is not a PowerShell file'
+}
+
+function New-DeploymentFixture {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    New-TestDirectory -Path $Path
+    New-TestDirectory -Path (Join-Path $Path '.git')
+    New-TestDirectory -Path (Join-Path $Path '.github')
+    New-TestDirectory -Path (Join-Path $Path 'scripts')
+
+    Write-TestFile -Path (Join-Path $Path 'main.ps1') -Content 'Write-Host "Main script content"'
+    Write-TestFile -Path (Join-Path $Path 'config.txt') -Content 'Configuration content'
+    Write-TestFile -Path (Join-Path $Path 'scripts\subscript.ps1') -Content 'Write-Host "Subscript content"'
+    Write-TestFile -Path (Join-Path $Path '.git\config') -Content 'Git file'
+    Write-TestFile -Path (Join-Path $Path '.github\workflow.yml') -Content 'name: test-workflow'
+    Write-TestFile -Path (Join-Path $Path 'test.crt') -Content 'Certificate file'
+    Write-TestFile -Path (Join-Path $Path 'Config.json') -Content '{"name":"test-config"}'
+}
+
+function New-IntegrationFixture {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    New-TestDirectory -Path $Path
+    New-TestDirectory -Path (Join-Path $Path 'scripts')
+    New-TestDirectory -Path (Join-Path $Path '.git')
+    New-TestDirectory -Path (Join-Path $Path '.github')
+
+    Write-TestFile -Path (Join-Path $Path 'main.ps1') -Content @'
 #!/usr/bin/env pwsh
-<#
-.SYNOPSIS
-    Main application script for integration test.
-.DESCRIPTION
-    This is a test script that demonstrates the complete signing and deployment workflow.
-#>
 [CmdletBinding()]
 param(
     [Parameter()]
@@ -50,20 +131,11 @@ param(
 Write-Host $Message -ForegroundColor Green
 Write-Host "Script executed successfully" -ForegroundColor Cyan
 '@
-    Set-Content -Path "$ProjectPath\main.ps1" -Value $mainScript -Encoding UTF8
-
-    # Create TestUtils.psm1 module
-    $moduleScript = @'
-#!/usr/bin/env pwsh
-<#
-.SYNOPSIS
-    Utility functions module for integration test.
-#>
-
+    Write-TestFile -Path (Join-Path $Path 'scripts\TestUtils.psm1') -Content @'
 function Get-TestInfo {
     [CmdletBinding()]
     param()
-    
+
     return @{
         Version = "1.0.0"
         Name = "Integration Test Module"
@@ -77,29 +149,18 @@ function Invoke-TestFunction {
         [Parameter()]
         [string]$InputText = "Default test input"
     )
-    
+
     Write-Host "Test function called with: $InputText" -ForegroundColor Yellow
     return "Processed: $InputText"
 }
 
 Export-ModuleMember -Function Get-TestInfo, Invoke-TestFunction
 '@
-    Set-Content -Path "$ProjectPath\scripts\TestUtils.psm1" -Value $moduleScript -Encoding UTF8
-
-    # Create helper.ps1 script
-    $helperScript = @'
-#!/usr/bin/env pwsh
-<#
-.SYNOPSIS
-    Helper script for the integration test project.
-#>
-
-# Import the test utilities
+    Write-TestFile -Path (Join-Path $Path 'scripts\helper.ps1') -Content @'
 Import-Module "$PSScriptRoot\TestUtils.psm1" -Force
 
 Write-Host "Helper script starting..." -ForegroundColor Cyan
 
-# Use the module functions
 $info = Get-TestInfo
 Write-Host "Module info: $($info.Name) v$($info.Version)" -ForegroundColor Gray
 
@@ -108,16 +169,13 @@ Write-Host "Function result: $result" -ForegroundColor Gray
 
 Write-Host "Helper script completed successfully" -ForegroundColor Green
 '@
-    Set-Content -Path "$ProjectPath\scripts\helper.ps1" -Value $helperScript -Encoding UTF8
-
-    # Create module manifest
-    $manifestScript = @'
+    Write-TestFile -Path (Join-Path $Path 'scripts\TestUtils.psd1') -Content @'
 @{
     RootModule = 'TestUtils.psm1'
     ModuleVersion = '1.0.0'
     GUID = 'a1b2c3d4-e5f6-4321-8765-fedcba987654'
     Author = 'Integration Test'
-    CompanyName = 'Mennotech'  
+    CompanyName = 'Mennotech'
     Copyright = 'Copyright (c) 2026 Mennotech. All rights reserved.'
     Description = 'Test module for integration testing GitHub Actions'
     FunctionsToExport = @('Get-TestInfo', 'Invoke-TestFunction')
@@ -126,19 +184,34 @@ Write-Host "Helper script completed successfully" -ForegroundColor Green
     AliasesToExport = @()
 }
 '@
-    Set-Content -Path "$ProjectPath\scripts\TestUtils.psd1" -Value $manifestScript -Encoding UTF8
+    Write-TestFile -Path (Join-Path $Path 'config.txt') -Content 'This is a configuration file for the test application'
+    Write-TestFile -Path (Join-Path $Path 'README.md') -Content 'README for the test project'
+    Write-TestFile -Path (Join-Path $Path '.git\config') -Content 'Git config file'
+    Write-TestFile -Path (Join-Path $Path '.github\test.yml') -Content 'name: integration-test'
+    Write-TestFile -Path (Join-Path $Path 'test.crt') -Content 'Certificate file'
+    Write-TestFile -Path (Join-Path $Path 'Config.json') -Content '{"app":"integration-test"}'
+}
 
-    # Create files that should be deployed but not signed
-    "This is a configuration file for the test application" | Out-File -FilePath "$ProjectPath\config.txt" -Encoding UTF8
-    "README for the test project" | Out-File -FilePath "$ProjectPath\README.md" -Encoding UTF8
-    
-    # Create files that should be excluded from deployment
-    "Git config file" | Out-File -FilePath "$ProjectPath\.git\config" -Encoding UTF8
-    "GitHub workflow" | Out-File -FilePath "$ProjectPath\.github\test.yml" -Encoding UTF8
-    "Certificate file" | Out-File -FilePath "$ProjectPath\test.crt" -Encoding UTF8
-    
-    Write-Host "[OK] Test project structure created" -ForegroundColor Green
-    
+try {
+    Write-Host "Setting up test fixture for scenario: $Scenario" -ForegroundColor Cyan
+
+    if (Test-Path $ProjectPath) {
+        Remove-Item -Path $ProjectPath -Recurse -Force
+    }
+
+    switch ($Scenario) {
+        'Signing' {
+            New-SigningFixture -Path $ProjectPath
+        }
+        'Deployment' {
+            New-DeploymentFixture -Path $ProjectPath
+        }
+        'Integration' {
+            New-IntegrationFixture -Path $ProjectPath
+        }
+    }
+
+    Write-Host "[OK] Test fixture created at $ProjectPath" -ForegroundColor Green
 } catch {
     Write-Error "Failed to setup integration test environment: $_"
     exit 1

@@ -4,44 +4,149 @@
     Creates a test certificate for GitHub Actions testing.
 
 .DESCRIPTION
-    Creates a self-signed certificate for testing certificate import functionality,
-    exports it to PFX format, converts to base64, and sets GitHub environment variables.
+    Creates a self-signed certificate for test workflows. The certificate can either
+    be exported to PFX and written to GitHub environment variables, or kept imported
+    in the CurrentUser certificate store for signing tests.
+
+.PARAMETER Mode
+    Selects whether the certificate should be exported to PFX or kept imported in
+    the certificate store.
+
+.PARAMETER Subject
+    Subject used for the test certificate.
+
+.PARAMETER Password
+    Password used when exporting the certificate to PFX.
+
+.PARAMETER ValidDays
+    Number of days the certificate should remain valid.
+
+.PARAMETER Base64EnvVarName
+    Environment variable name used for exported base64 PFX content.
+
+.PARAMETER PasswordEnvVarName
+    Environment variable name used for the exported PFX password.
+
+.PARAMETER ThumbprintEnvVarName
+    Environment variable name used for the certificate thumbprint.
+
+.PARAMETER ImportedThumbprintEnvVarName
+    Environment variable name used for the imported certificate thumbprint.
 
 .EXAMPLE
-    Create-TestCertificate.ps1
+    Create-TestCertificate.ps1 -Mode ExportPfx
+
+.EXAMPLE
+    Create-TestCertificate.ps1 -Mode ImportToStore -Subject "CN=TestCodeSignCert"
 #>
 
 [CmdletBinding()]
-param()
+param(
+    [Parameter()]
+    [ValidateSet('ExportPfx', 'ImportToStore')]
+    [string]$Mode = 'ExportPfx',
+
+    [Parameter()]
+    [string]$Subject = 'CN=TestCert',
+
+    [Parameter()]
+    [string]$Password = 'TestPassword123!',
+
+    [Parameter()]
+    [int]$ValidDays = 1,
+
+    [Parameter()]
+    [string]$Base64EnvVarName = 'TEST_PFX_BASE64',
+
+    [Parameter()]
+    [string]$PasswordEnvVarName = 'TEST_PFX_PASSWORD',
+
+    [Parameter()]
+    [string]$ThumbprintEnvVarName = 'TEST_CERT_THUMBPRINT',
+
+    [Parameter()]
+    [string]$ImportedThumbprintEnvVarName = 'IMPORTED_CERT_THUMBPRINT'
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function Set-TestEnvironmentVariable {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Name,
+
+        [Parameter(Mandatory)]
+        [string]$Value
+    )
+
+    if ($env:GITHUB_ENV) {
+        "$Name=$Value" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding UTF8
+    } else {
+        Set-Item -Path "Env:$Name" -Value $Value
+    }
+
+    Write-Host "  Set environment variable: $Name" -ForegroundColor Gray
+}
+
+function Set-TestOutput {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Name,
+
+        [Parameter(Mandatory)]
+        [string]$Value
+    )
+
+    if ($env:GITHUB_OUTPUT) {
+        "$Name=$Value" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding UTF8
+        Write-Host "  Set step output: $Name" -ForegroundColor Gray
+    }
+}
+
 try {
-    Write-Host "Creating test certificate for validation..." -ForegroundColor Cyan
-    
-    # Create a self-signed certificate for testing
-    $cert = New-SelfSignedCertificate -Subject "CN=TestCert" -CertStoreLocation "Cert:\CurrentUser\My" -KeyUsage DigitalSignature -Type CodeSigningCert
-    
-    # Export to PFX with password
-    $password = ConvertTo-SecureString "TestPassword123!" -AsPlainText -Force
-    $pfxPath = "$env:TEMP\test.pfx"
-    Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $password | Out-Null
-    
-    # Convert to base64
-    $pfxBytes = [IO.File]::ReadAllBytes($pfxPath)
-    $pfxBase64 = [Convert]::ToBase64String($pfxBytes)
-    
-    # Set environment variables for the test
-    "TEST_PFX_BASE64=$pfxBase64" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding UTF8
-    "TEST_PFX_PASSWORD=TestPassword123!" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding UTF8
-    
-    # Clean up cert from store and file
-    Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -Force
-    Remove-Item $pfxPath -Force
-    
-    Write-Host "[OK] Test certificate created and exported" -ForegroundColor Green
-    
+    Write-Host "Creating test certificate in mode: $Mode" -ForegroundColor Cyan
+
+    $certificateParams = @{
+        Subject = $Subject
+        CertStoreLocation = 'Cert:\CurrentUser\My'
+        KeyUsage = 'DigitalSignature'
+        Type = 'CodeSigningCert'
+        NotAfter = (Get-Date).AddDays($ValidDays)
+    }
+    $cert = New-SelfSignedCertificate @certificateParams
+
+    Write-Host "  Subject: $($cert.Subject)" -ForegroundColor Gray
+    Write-Host "  Thumbprint: $($cert.Thumbprint)" -ForegroundColor Gray
+
+    if ($Mode -eq 'ExportPfx') {
+        $securePassword = ConvertTo-SecureString $Password -AsPlainText -Force
+        $pfxPath = Join-Path $env:TEMP "test-certificate-$([guid]::NewGuid()).pfx"
+
+        Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $securePassword | Out-Null
+
+        $pfxBytes = [IO.File]::ReadAllBytes($pfxPath)
+        $pfxBase64 = [Convert]::ToBase64String($pfxBytes)
+
+        Set-TestEnvironmentVariable -Name $Base64EnvVarName -Value $pfxBase64
+        Set-TestEnvironmentVariable -Name $PasswordEnvVarName -Value $Password
+        Set-TestOutput -Name 'pfx_base64' -Value $pfxBase64
+        Set-TestOutput -Name 'pfx_password' -Value $Password
+
+        Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -Force
+        Remove-Item $pfxPath -Force
+
+        Write-Host "[OK] Test certificate created, exported, and removed from store" -ForegroundColor Green
+    } else {
+        Set-TestEnvironmentVariable -Name $ThumbprintEnvVarName -Value $cert.Thumbprint
+        Set-TestEnvironmentVariable -Name $ImportedThumbprintEnvVarName -Value $cert.Thumbprint
+        Set-TestOutput -Name 'certificate_thumbprint' -Value $cert.Thumbprint
+        Set-TestOutput -Name 'imported_certificate_thumbprint' -Value $cert.Thumbprint
+
+        Write-Host "[OK] Test certificate created and left imported for signing" -ForegroundColor Green
+    }
 } catch {
     Write-Error "Failed to create test certificate: $_"
     exit 1
