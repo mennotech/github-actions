@@ -59,7 +59,7 @@ jobs:
         shell: pwsh
         run: |
           $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-IntegrationCodeSigning.ps1"
-          & $scriptPath -ProjectPath "test-project"
+          & $scriptPath -ProjectPath "test-project" -ExpectedThumbprint "${{ steps.import-cert.outputs.certificate_thumbprint }}"
 
       - name: Step 3 - Deploy Files
         uses: ./deploy-files-windows
@@ -73,7 +73,7 @@ jobs:
         shell: pwsh
         run: |
           $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-IntegrationCodeSigning.ps1"
-          & $scriptPath -ProjectPath "C:\temp\integration-test-deploy"
+          & $scriptPath -ProjectPath "C:\temp\integration-test-deploy" -ExpectedThumbprint "${{ steps.import-cert.outputs.certificate_thumbprint }}"
 
       - name: Test deployed application
         shell: pwsh

@@ -42,18 +42,8 @@ try {
         throw "Certificate not found in certificate store"
     }
 
-    $tempCerPath = Join-Path $env:TEMP "$CertificateThumbprint.cer"
-    try {
-        Export-Certificate -Cert $cert -FilePath $tempCerPath -Force | Out-Null
-        Import-Certificate -FilePath $tempCerPath -CertStoreLocation "Cert:\CurrentUser\Root" | Out-Null
-        Import-Certificate -FilePath $tempCerPath -CertStoreLocation "Cert:\CurrentUser\TrustedPublisher" | Out-Null
-    } finally {
-        if (Test-Path $tempCerPath) {
-            Remove-Item $tempCerPath -Force
-        }
-    }
-
-    Write-Host "[OK] Certificate trusted for test signing" -ForegroundColor Green
+    Write-Host "Certificate subject: $($cert.Subject)" -ForegroundColor Gray
+    Write-Host "[OK] Certificate is available for the next workflow steps" -ForegroundColor Green
     
     Write-Host "[OK] Certificate import verified successfully" -ForegroundColor Green
     

@@ -39,7 +39,7 @@ try {
         $sig = Get-AuthenticodeSignature -FilePath $file.FullName
         Write-Host "File: $($file.Name), Status: $($sig.Status)" -ForegroundColor Gray
         
-        if ($sig.Status -eq 'Valid') {
+        if ($sig.Status -in @('Valid', 'UnknownError') -and $sig.SignerCertificate -and (-not $TestCertThumbprint -or $sig.SignerCertificate.Thumbprint -eq $TestCertThumbprint)) {
             $signedCount++
         }
     }

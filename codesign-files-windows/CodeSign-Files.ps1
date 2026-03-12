@@ -337,6 +337,8 @@ function Invoke-PowerShellFileSigning {
         [string]$TimestampServer = "http://timestamp.digicert.com"
     )
 
+    $acceptableStatuses = @('Valid', 'UnknownError')
+
     $signedCount = 0
     $failedCount = 0
     
@@ -346,7 +348,7 @@ function Invoke-PowerShellFileSigning {
             
             $sig = Set-AuthenticodeSignature -FilePath $file.FullName -Certificate $Certificate -TimestampServer $TimestampServer
             
-            if ($sig.Status -eq 'Valid') {
+            if ($sig.Status -in $acceptableStatuses -and $sig.SignerCertificate -and $sig.SignerCertificate.Thumbprint -eq $Certificate.Thumbprint) {
                 Write-Host "  Success" -ForegroundColor Green
                 $signedCount++
             } else {

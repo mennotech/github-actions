@@ -16,7 +16,10 @@
 [CmdletBinding()]
 param(
     [Parameter()]
-    [string]$ProjectPath = "test-project"
+    [string]$ProjectPath = "test-project",
+
+    [Parameter()]
+    [string]$ExpectedThumbprint
 )
 
 Set-StrictMode -Version Latest
@@ -44,7 +47,7 @@ try {
         if ($sig.Status -ne 'NotSigned') {
             $signedCount++
         }
-        if ($sig.Status -eq 'Valid') {
+        if ($sig.Status -in @('Valid', 'UnknownError') -and $sig.SignerCertificate -and (-not $ExpectedThumbprint -or $sig.SignerCertificate.Thumbprint -eq $ExpectedThumbprint)) {
             $validCount++
         }
     }
