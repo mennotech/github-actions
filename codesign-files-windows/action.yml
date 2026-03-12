@@ -58,5 +58,4 @@ runs:
         if ('${{ inputs.cleanup_certificate }}' -eq 'true') { $args += '-CleanupCertificate' }
         if ('${{ inputs.test_only }}' -eq 'true') { $args += '-TestOnly' }
         if ('${{ inputs.fail_on_invalid }}' -eq 'true') { $args += '-FailOnInvalid' }
-        
         & "${{ github.action_path }}/CodeSign-Files.ps1" @args
