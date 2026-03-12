@@ -93,18 +93,18 @@ jobs:
           $scriptPath = "${{ github.workspace }}\.github\scripts\Create-TestSourceStructure.ps1"
           & $scriptPath -SourcePath "test-source"
 
+      - name: Test Deploy Action (Actual Deploy)
+        uses: ./deploy-files-windows
+        with:
+          source_path: test-source
+          destination_path: C:\temp\deploy-test
+
       - name: Test Deploy Action (Test Mode)
         uses: ./deploy-files-windows
         with:
           source_path: test-source
           destination_path: C:\temp\deploy-test
           test_only: true
-
-      - name: Test Deploy Action (Actual Deploy)
-        uses: ./deploy-files-windows
-        with:
-          source_path: test-source
-          destination_path: C:\temp\deploy-test
 
       - name: Verify deployment
         shell: pwsh

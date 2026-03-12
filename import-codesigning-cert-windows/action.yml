@@ -26,5 +26,6 @@ runs:
           | Where-Object { $_ -match "Certificate thumbprint: (.+)" } `
           | ForEach-Object { $_.Split(': ')[1] }
         if ($thumbprint) {
+          Write-Output "IMPORTED_CERT_THUMBPRINT=$thumbprint" >> $env:GITHUB_ENV
           Write-Output "thumbprint=$thumbprint" >> $env:GITHUB_OUTPUT
         }

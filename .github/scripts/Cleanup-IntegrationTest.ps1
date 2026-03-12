@@ -28,12 +28,24 @@ try {
     # Clean up imported certificates if any
     if ($env:IMPORTED_CERT_THUMBPRINT) {
         Write-Host "Removing imported test certificate: $env:IMPORTED_CERT_THUMBPRINT" -ForegroundColor Gray
-        $cert = Get-ChildItem -Path Cert:\CurrentUser\My | Where-Object { $_.Thumbprint -eq $env:IMPORTED_CERT_THUMBPRINT }
-        if ($cert) {
-            $cert | Remove-Item
-            Write-Host "[OK] Certificate removed successfully" -ForegroundColor Green
-        } else {
-            Write-Host "[Warning] Certificate not found in store" -ForegroundColor Yellow
+        $stores = @(
+            "Cert:\CurrentUser\My",
+            "Cert:\CurrentUser\TrustedPublisher",
+            "Cert:\CurrentUser\Root"
+        )
+
+        $removed = $false
+        foreach ($storePath in $stores) {
+            $cert = Get-ChildItem -Path $storePath -ErrorAction SilentlyContinue | Where-Object { $_.Thumbprint -eq $env:IMPORTED_CERT_THUMBPRINT }
+            if ($cert) {
+                $cert | Remove-Item -Force
+                $removed = $true
+                Write-Host "[OK] Certificate removed from $storePath" -ForegroundColor Green
+            }
+        }
+
+        if (-not $removed) {
+            Write-Host "[Warning] Certificate not found in configured stores" -ForegroundColor Yellow
         }
         $env:IMPORTED_CERT_THUMBPRINT = $null
     }

@@ -41,7 +41,7 @@ jobs:
       - name: Verify certificate import
         shell: pwsh
         run: |
-          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-CertificateImport.ps1"
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-IntegrationCertificateImport.ps1"
           $thumbprint = "${{ steps.import-cert.outputs.certificate_thumbprint }}"
           & $scriptPath -CertificateThumbprint $thumbprint
 
@@ -49,6 +49,7 @@ jobs:
         uses: ./codesign-files-windows
         with:
           path: test-project
+          cert_thumbprint: ${{ steps.import-cert.outputs.certificate_thumbprint }}
           recurse: true
           file_match: "*.ps1,*.psm1,*.psd1"
           exclude_dirs: ".git,.github"
