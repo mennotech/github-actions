@@ -1,8 +1,36 @@
-# Example Usage for mennotech/github-workflows
+# Example Usage for Mennotech GitHub Actions & Workflows
 
-This demonstrates how to consume the actions from `mennotech/github-actions` in your workflow repository.
+This document demonstrates the **correct separation of responsibilities** when using Mennotech’s GitHub Actions and reusable workflows.
 
-## Sign and Deploy Workflow
+> **Key principle**
+>
+> - **Application repositories own configuration** (paths, exclusions, environment‑specific values)
+> - **Workflow repositories own orchestration** (step order, guardrails, security defaults)
+> - **Action repositories own mechanics** (how signing and deployment are implemented)
+
+---
+
+## Architecture Overview
+
+| Layer | Repository | Responsibility |
+|------|-----------|----------------|
+| Application / Scripts | Your repo | Defines **what** is deployed and **where** |
+| Reusable Workflows | `mennotech/github-workflows` | Defines **how** deployment happens |
+| Composite Actions | `mennotech/github-actions` | Implements **low‑level mechanics** |
+
+---
+
+## Example: Application Repository (✅ owns parameters)
+
+This is what a **final script or application repository** should contain.
+
+The application repository:
+- Chooses deployment paths
+- Chooses exclusions
+- Chooses triggers
+- Does **not** implement signing or deployment logic
+
+### `.github/workflows/deploy.yml` (Application Repository)
 
 ```yaml
 name: Sign and Deploy
@@ -10,88 +38,22 @@ name: Sign and Deploy
 on:
   workflow_dispatch:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
 permissions:
   contents: read
 
 jobs:
-  sign_and_deploy:
-    name: Sign scripts and deploy (Windows)
-    runs-on:
-      group: SCS Domain Controllers
-      labels: [self-hosted, windows]
+  deploy:
+    name: Sign and deploy application scripts
+    uses: mennotech/github-workflows/sign-and-deploy-windows@v1
+    secrets: inherit
+    with:
+      # Application-specific configuration
+      destination_path: "C:\\Scripts\\exchange-apply-address-book-policy"
+      exclude_dirs: ".git,.github,_work,logs"
+      exclude_files: "*.crt,Config.json"
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Import Code-Signing Certificate
-        uses: mennotech/github-actions/import-codesigning-cert-windows@v1
-        with:
-          pfx_base64: ${{ secrets.CODESIGN_PFX_BASE64 }}
-          pfx_password: ${{ secrets.CODESIGN_PFX_PASSWORD }}
-
-      - name: Sign PowerShell Files
-        uses: mennotech/github-actions/codesign-files-windows@v1
-        with:
-          timestamp_server: "http://timestamp.digicert.com"
-          recurse: true
-          cleanup_certificate: true  # SECURITY: Remove certificate after signing
-
-      - name: Validate Script Signatures
-        uses: mennotech/github-actions/codesign-files-windows@v1
-        with:
-          test_only: true
-          fail_on_invalid: true
-          recurse: true
-
-      - name: Deploy Scripts
-        uses: mennotech/github-actions/deploy-files-windows@v1
-        with:
-          destination_path: "C:\\Scripts\\exchange-apply-address-book-policy"
-          exclude_dirs: ".git,.github,_work,logs"
-          exclude_files: "*.crt,Config.json"
-
-      - name: Validate Deployment
-        uses: mennotech/github-actions/deploy-files-windows@v1
-        with:
-          destination_path: "C:\\Scripts\\exchange-apply-address-book-policy"
-          exclude_dirs: ".git,.github,_work,logs"
-          exclude_files: "*.crt,Config.json"
-          test_only: true
-```
-
-## Migration from Old Pattern
-
-**Before** (refactoring-this-deploy.yml):
-```yaml
-- name: Import Code-Signing certificate
-  shell: pwsh
-  env:
-    CODESIGN_PFX_BASE64: ${{ secrets.CODESIGN_PFX_BASE64 }}
-    CODESIGN_PFX_PASSWORD: ${{ secrets.CODESIGN_PFX_PASSWORD }}
-  run: .\.github\scripts\Import-CodeSigningCertificate.ps1
-
-- name: Sign PowerShell files
-  shell: pwsh
-  env:
-    TIMESTAMP_SERVER: "http://timestamp.digicert.com"
-  run: .\.github\scripts\Sign-PowerShellFiles.ps1 -Recurse -CleanupCertificate
-```
-
-**After** (using platform-specific actions):
-```yaml
-- name: Import Code-Signing Certificate  
-  uses: mennotech/github-actions/import-codesigning-cert-windows@v1
-  with:
-    pfx_base64: ${{ secrets.CODESIGN_PFX_BASE64 }}
-    pfx_password: ${{ secrets.CODESIGN_PFX_PASSWORD }}
-
-- name: Sign PowerShell Files
-  uses: mennotech/github-actions/codesign-files-windows@v1
-  with:
-    timestamp_server: "http://timestamp.digicert.com"
-    recurse: true
-    cleanup_certificate: true
-```
+      # Optional overrides
+      timestamp_server: "http://timestamp.digicert.com"
+``

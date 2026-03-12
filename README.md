@@ -2,7 +2,40 @@
 
 > **Reusable GitHub Actions** for code signing, deployment, and DevOps workflows
 
-Central repository containing Mennotech's reusable GitHub Actions. These actions are designed to be consumed by workflows in [`mennotech/github-workflows`](https://github.com/mennotech/github-workflows) and other repositories using the standard marketplace pattern.
+Central repository containing Mennotech maintained reusable GitHub Actions. These actions are designed to be consumed by workflows in [`mennotech/github-workflows`](https://github.com/mennotech/github-workflows) and other repositories using the standard marketplace pattern.
+
+## Repository Architecture
+
+This repository is part of a three-tier DevOps architecture:
+
+### 🔧 [mennotech/github-actions](https://github.com/mennotech/github-actions) *(This Repository)*
+**Purpose**: Low-level reusable actions for specific tasks
+- ✅ **Atomic Actions**: Certificate import, code signing, file deployment
+- ✅ **Cross-Platform Support**: Windows (current), Linux/macOS (planned)
+- ✅ **Direct Consumption**: `uses: mennotech/github-actions/action-name@v1`
+- ✅ **Single Responsibility**: Each action performs one specific task
+
+### 🔄 [mennotech/github-workflows](https://github.com/mennotech/github-workflows)
+**Purpose**: Complete workflow templates that orchestrate actions
+- ✅ **End-to-End Pipelines**: Build → Sign → Test → Deploy workflows
+- ✅ **Reusable Workflows**: `uses: mennotech/github-workflows/.github/workflows/deploy.yml@v1`
+- ✅ **Best Practices**: Security, error handling, rollback strategies
+- ✅ **Composition**: Combines multiple github-actions into complete DevOps flows
+
+### 📦 Individual Application Repositories
+**Purpose**: Your actual applications and scripts that need DevOps support
+- ✅ **Business Logic**: Your PowerShell scripts, applications, configurations
+- ✅ **Workflow Usage**: Consume workflows from `mennotech/github-workflows`
+- ✅ **Simple Configuration**: Just specify deployment paths and requirements
+- ✅ **Focus on Code**: Let the workflows handle the DevOps complexity
+
+### When to Use What?
+
+| Need | Repository | Example |
+|------|------------|---------|
+| **Simple Task** | mennotech/github-actions | Just sign some files |
+| **Complete Pipeline** | mennotech/github-workflows | Build, sign, test, deploy workflow |
+| **Custom Workflow** | Build your own | Use github-actions as building blocks |
 
 ## Quick Start
 
@@ -60,7 +93,9 @@ For contributors and maintainers:
 
 ## Security Notes
 
-⚠️ **Certificate Management**: Always use `cleanup_certificate: true` when signing files to prevent certificate persistence on self-hosted runners.
+These actions execute entirely within the caller’s workflow context (runners, permissions, secrets).
+
+**Certificate Management**: Always use `cleanup_certificate: true` when signing files to prevent certificate persistence on self-hosted runners.
 
 ## Example Usage
 

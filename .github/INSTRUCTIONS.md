@@ -4,7 +4,8 @@
 
 ## Table of Contents
 
-- [Repository Architecture](#repository-architecture)
+- [Ecosystem Architecture](#ecosystem-architecture)
+- [Technical Structure](#technical-structure)  
 - [Action Development Standards](#action-development-standards)
 - [PowerShell Script Conventions](#powershell-script-conventions)
 - [action.yml Development Patterns](#actionyml-development-patterns)
@@ -15,9 +16,46 @@
 
 ---
 
-## Repository Architecture
+## Ecosystem Architecture
 
-### Structure
+### Three-Tier DevOps Architecture
+
+Understanding where this repository fits in the broader Mennotech DevOps ecosystem:
+
+#### 🔧 **mennotech/github-actions** *(This Repository)*
+**Role**: Low-level atomic actions for specific DevOps tasks
+- ✅ Single responsibility actions (certificate import, code signing, file deployment)
+- ✅ Platform-specific implementations (Windows current, Linux/macOS planned)  
+- ✅ Building blocks for complex workflows
+- ✅ Direct consumption: `uses: mennotech/github-actions/action-name@v1`
+
+#### 🔄 **mennotech/github-workflows** 
+**Role**: Complete workflow templates that orchestrate actions
+- ✅ End-to-end deployment pipelines (Build → Sign → Test → Deploy)
+- ✅ Reusable workflows: `uses: mennotech/github-workflows/.github/workflows/deploy.yml@v1`
+- ✅ Best practice implementations with security, error handling, rollbacks
+- ✅ Composition layer that combines multiple github-actions
+
+#### 📦 **Application Repositories**
+**Role**: Business applications that consume workflows  
+- ✅ Focus on business logic and application code
+- ✅ Simple workflow consumption with minimal DevOps configuration
+- ✅ Specify deployment requirements, let workflows handle complexity
+
+### Development Context
+When building actions in this repository, consider:
+- **Atomic functionality**: Each action should do one thing well
+- **Composition-friendly**: Actions should work well together in larger workflows
+- **Platform abstraction**: Hide platform-specific details behind consistent interfaces
+- **Error boundaries**: Fail fast with clear error messages for workflow consumers
+
+---
+
+## Technical Structure
+
+## Technical Structure
+
+### File Organization
 ```
 mennotech/github-actions/
 ├── .github/
