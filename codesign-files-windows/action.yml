@@ -52,10 +52,11 @@ runs:
         EXCLUDE_DIRS: ${{ inputs.exclude_dirs }}
         IMPORTED_CERT_THUMBPRINT: ${{ inputs.cert_thumbprint || env.IMPORTED_CERT_THUMBPRINT }}
       run: |
-        $args = @()
-        if ('${{ inputs.path }}' -ne '.') { $args += @('-Path', '${{ inputs.path }}') }
-        if ('${{ inputs.recurse }}' -eq 'true') { $args += '-Recurse' }
-        if ('${{ inputs.cleanup_certificate }}' -eq 'true') { $args += '-CleanupCertificate' }
-        if ('${{ inputs.test_only }}' -eq 'true') { $args += '-TestOnly' }
-        if ('${{ inputs.fail_on_invalid }}' -eq 'true') { $args += '-FailOnInvalid' }
-        & "${{ github.action_path }}/CodeSign-Files.ps1" @args
+        $scriptPath = "${{ github.action_path }}/CodeSign-Files.ps1"
+        $args = @{}
+        if ('${{ inputs.path }}' -ne '.') { $args['Path'] = '${{ inputs.path }}' }
+        if ('${{ inputs.recurse }}' -eq 'true') { $args['Recurse'] = $true }
+        if ('${{ inputs.cleanup_certificate }}' -eq 'true') { $args['CleanupCertificate'] = $true }
+        if ('${{ inputs.test_only }}' -eq 'true') { $args['TestOnly'] = $true }
+        if ('${{ inputs.fail_on_invalid }}' -eq 'true') { $args['FailOnInvalid'] = $true }
+        & $scriptPath @args

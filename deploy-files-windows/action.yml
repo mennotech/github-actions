@@ -39,12 +39,13 @@ runs:
         EXCLUDE_FILES: ${{ inputs.exclude_files }}
         ROBOCOPY_OPTIONS: ${{ inputs.robocopy_options }}
       run: |
-        $args = @()
+        $scriptPath = "${{ github.action_path }}/Deploy-Files.ps1"
+        $args = @{}
         if ('${{ inputs.source_path }}' -ne '.') {
-          $args += @('-SourcePath', '${{ inputs.source_path }}')
+          $args['SourcePath'] = '${{ inputs.source_path }}'
         }
         if ('${{ inputs.test_only }}' -eq 'true') {
-          $args += '-TestOnly'
+          $args['TestOnly'] = $true
         }
 
-        & "${{ github.action_path }}/Deploy-Files.ps1" @args
+        & $scriptPath @args
