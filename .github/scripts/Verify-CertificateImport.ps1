@@ -21,7 +21,7 @@
     Verify-CertificateImport.ps1 -CertificateThumbprint "ABC123..."
 #>
 
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess)]
 param(
     [Parameter(Mandatory)]
     [string]$CertificateThumbprint,
@@ -37,7 +37,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 function Remove-TestCertificate {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)]
         [string]$Thumbprint
@@ -55,7 +55,7 @@ function Remove-TestCertificate {
             $_.Thumbprint -eq $Thumbprint
         }
 
-        if ($cert) {
+        if ($cert -and $PSCmdlet.ShouldProcess("$storePath\\$Thumbprint", 'Remove test certificate')) {
             $cert | Remove-Item -Force
             $removed = $true
             Write-Host "[OK] Certificate removed from $storePath" -ForegroundColor Green

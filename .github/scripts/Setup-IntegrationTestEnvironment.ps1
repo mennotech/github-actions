@@ -16,7 +16,7 @@
     Setup-IntegrationTestEnvironment.ps1 -Scenario Integration -ProjectPath "test-project"
 #>
 
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess)]
 param(
     [Parameter()]
     [string]$ProjectPath = 'test-project',
@@ -30,17 +30,19 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 function New-TestDirectory {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)]
         [string]$Path
     )
 
-    New-Item -ItemType Directory -Path $Path -Force | Out-Null
+    if ($PSCmdlet.ShouldProcess($Path, 'Create test directory')) {
+        New-Item -ItemType Directory -Path $Path -Force | Out-Null
+    }
 }
 
 function Write-TestFile {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)]
         [string]$Path,
@@ -54,15 +56,21 @@ function Write-TestFile {
         New-TestDirectory -Path $directory
     }
 
-    Set-Content -Path $Path -Value $Content -Encoding UTF8
+    if ($PSCmdlet.ShouldProcess($Path, 'Write test file')) {
+        Set-Content -Path $Path -Value $Content -Encoding UTF8
+    }
 }
 
 function New-SigningFixture {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)]
         [string]$Path
     )
+
+    if (-not $PSCmdlet.ShouldProcess($Path, 'Create signing test fixture')) {
+        return
+    }
 
     New-TestDirectory -Path $Path
     New-TestDirectory -Path (Join-Path $Path 'subdir')
@@ -88,11 +96,15 @@ Write-Host "Hello from subdirectory script"
 }
 
 function New-DeploymentFixture {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)]
         [string]$Path
     )
+
+    if (-not $PSCmdlet.ShouldProcess($Path, 'Create deployment test fixture')) {
+        return
+    }
 
     New-TestDirectory -Path $Path
     New-TestDirectory -Path (Join-Path $Path '.git')
@@ -109,11 +121,15 @@ function New-DeploymentFixture {
 }
 
 function New-IntegrationFixture {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)]
         [string]$Path
     )
+
+    if (-not $PSCmdlet.ShouldProcess($Path, 'Create integration test fixture')) {
+        return
+    }
 
     New-TestDirectory -Path $Path
     New-TestDirectory -Path (Join-Path $Path 'scripts')
@@ -196,7 +212,9 @@ try {
     Write-Host "Setting up test fixture for scenario: $Scenario" -ForegroundColor Cyan
 
     if (Test-Path $ProjectPath) {
-        Remove-Item -Path $ProjectPath -Recurse -Force
+        if ($PSCmdlet.ShouldProcess($ProjectPath, 'Remove existing test fixture')) {
+            Remove-Item -Path $ProjectPath -Recurse -Force
+        }
     }
 
     switch ($Scenario) {
@@ -211,7 +229,11 @@ try {
         }
     }
 
-    Write-Host "[OK] Test fixture created at $ProjectPath" -ForegroundColor Green
+    if ($WhatIfPreference) {
+        Write-Host "[Info] WhatIf preview completed for test fixture at $ProjectPath" -ForegroundColor Yellow
+    } else {
+        Write-Host "[OK] Test fixture created at $ProjectPath" -ForegroundColor Green
+    }
 } catch {
     Write-Error "Failed to setup integration test environment: $_"
     exit 1

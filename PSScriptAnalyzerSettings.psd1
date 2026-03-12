@@ -7,6 +7,7 @@
         'PSUseApprovedVerbs'
         'PSUseDeclaredVarsMoreThanAssignments'
         'PSUseOutputTypeCorrectly'
+        'PSUseShouldProcessForStateChangingFunctions'
         'PSUseSingularNouns'
     )
 }

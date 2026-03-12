@@ -126,7 +126,7 @@ try {
                 $content = Get-Content -Path $file.FullName -Raw
 
                 # Check for CmdletBinding on functions
-                if ($content -match 'function\s+\w+' -and $content -notmatch '\[CmdletBinding\(\)\]') {
+                if ($content -match 'function\s+\w+' -and $content -notmatch '\[CmdletBinding(?:\([^\]]*\))?\]') {
                     Write-Host "[Warning] $($file.Name): Consider adding [CmdletBinding()] to functions" -ForegroundColor Yellow
                     $warningCount++
                 }

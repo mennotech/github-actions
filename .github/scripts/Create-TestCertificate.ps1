@@ -40,7 +40,7 @@
     Create-TestCertificate.ps1 -Mode ImportToStore -Subject "CN=TestCodeSignCert"
 #>
 
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess)]
 param(
     [Parameter()]
     [ValidateSet('ExportPfx', 'ImportToStore')]
@@ -72,7 +72,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 function Set-TestEnvironmentVariable {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)]
         [string]$Name,
@@ -81,17 +81,19 @@ function Set-TestEnvironmentVariable {
         [string]$Value
     )
 
-    if ($env:GITHUB_ENV) {
-        "$Name=$Value" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding UTF8
-    } else {
-        Set-Item -Path "Env:$Name" -Value $Value
-    }
+    if ($PSCmdlet.ShouldProcess($Name, 'Set test environment variable')) {
+        if ($env:GITHUB_ENV) {
+            "$Name=$Value" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding UTF8
+        } else {
+            Set-Item -Path "Env:$Name" -Value $Value
+        }
 
-    Write-Host "  Set environment variable: $Name" -ForegroundColor Gray
+        Write-Host "  Set environment variable: $Name" -ForegroundColor Gray
+    }
 }
 
 function Set-TestOutput {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)]
         [string]$Name,
@@ -100,7 +102,7 @@ function Set-TestOutput {
         [string]$Value
     )
 
-    if ($env:GITHUB_OUTPUT) {
+    if ($env:GITHUB_OUTPUT -and $PSCmdlet.ShouldProcess($Name, 'Set test step output')) {
         "$Name=$Value" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding UTF8
         Write-Host "  Set step output: $Name" -ForegroundColor Gray
     }
@@ -108,6 +110,10 @@ function Set-TestOutput {
 
 try {
     Write-Host "Creating test certificate in mode: $Mode" -ForegroundColor Cyan
+
+    if (-not $PSCmdlet.ShouldProcess($Subject, 'Create test certificate')) {
+        return
+    }
 
     $certificateParams = @{
         Subject = $Subject
@@ -125,7 +131,9 @@ try {
         $securePassword = ConvertTo-SecureString $Password -AsPlainText -Force
         $pfxPath = Join-Path $env:TEMP "test-certificate-$([guid]::NewGuid()).pfx"
 
-        Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $securePassword | Out-Null
+        if ($PSCmdlet.ShouldProcess($pfxPath, 'Export test certificate to PFX')) {
+            Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $securePassword | Out-Null
+        }
 
         $pfxBytes = [IO.File]::ReadAllBytes($pfxPath)
         $pfxBase64 = [Convert]::ToBase64String($pfxBytes)
@@ -135,8 +143,12 @@ try {
         Set-TestOutput -Name 'pfx_base64' -Value $pfxBase64
         Set-TestOutput -Name 'pfx_password' -Value $Password
 
-        Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -Force
-        Remove-Item $pfxPath -Force
+        if ($PSCmdlet.ShouldProcess($cert.Thumbprint, 'Remove exported test certificate from store')) {
+            Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -Force
+        }
+        if ($PSCmdlet.ShouldProcess($pfxPath, 'Remove temporary PFX file')) {
+            Remove-Item $pfxPath -Force
+        }
 
         Write-Host "[OK] Test certificate created, exported, and removed from store" -ForegroundColor Green
     } else {
