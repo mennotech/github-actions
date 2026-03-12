@@ -68,11 +68,11 @@ jobs:
                 $errors += "Syntax errors in $($script.FullName):"
                 $parseErrors | ForEach-Object { $errors += "  Line $($_.Token.StartLine): $($_.Message)" }
               } else {
-                Write-Host "  ✅ Syntax OK" -ForegroundColor Green
+                Write-Host "  [OK] Syntax OK" -ForegroundColor Green
               }
             } catch {
               $errors += "Failed to parse $($script.FullName): $_"
-              Write-Host "  ❌ Syntax Error: $_" -ForegroundColor Red
+              Write-Host "  [ERROR] Syntax Error: $_" -ForegroundColor Red
             }
           }
           
@@ -81,7 +81,7 @@ jobs:
             $errors | ForEach-Object { Write-Host $_ -ForegroundColor Red }
             exit 1
           } else {
-            Write-Host "`n✅ All PowerShell scripts have valid syntax" -ForegroundColor Green
+            Write-Host "`n[OK] All PowerShell scripts have valid syntax" -ForegroundColor Green
           }
 
   validate-action-metadata:
@@ -136,9 +136,9 @@ jobs:
           done
           
           if [[ ${#errors[@]} -gt 0 ]]; then
-            echo "❌ Action validation failed:"
+            echo "[ERROR] Action validation failed:"
             printf '%s\n' "${errors[@]}"
             exit 1
           else {
-            echo "✅ All actions have valid structure"
+            echo "[OK] All actions have valid structure"
           fi

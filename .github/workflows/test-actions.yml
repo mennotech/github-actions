@@ -43,7 +43,7 @@ jobs:
           Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -Force
           Remove-Item $pfxPath -Force
           
-          Write-Host "✅ Test certificate created and exported" -ForegroundColor Green
+          Write-Host "[OK] Test certificate created and exported" -ForegroundColor Green
 
       - name: Test Import Certificate Action
         id: import-test
@@ -70,11 +70,11 @@ jobs:
             throw "Certificate not found in certificate store"
           }
           
-          Write-Host "✅ Certificate successfully imported and verified" -ForegroundColor Green
+          Write-Host "[OK] Certificate successfully imported and verified" -ForegroundColor Green
           
           # Clean up test certificate
           Remove-Item "Cert:\CurrentUser\My\$thumbprint" -Force
-          Write-Host "✅ Test certificate cleaned up" -ForegroundColor Green
+          Write-Host "[OK] Test certificate cleaned up" -ForegroundColor Green
 
   test-codesign-action:
     name: Test Code Sign Action
@@ -94,30 +94,18 @@ jobs:
           New-Item -ItemType Directory -Path "test-scripts\subdir" -Force | Out-Null
           
           # Create test .ps1 files
-          @"
-# Test PowerShell script 1
-Write-Host 'Hello from test script 1'
-"@ | Out-File -FilePath "test-scripts\test1.ps1" -Encoding UTF8
+          "# Test PowerShell script 1`nWrite-Host 'Hello from test script 1'" | Out-File -FilePath "test-scripts\test1.ps1" -Encoding UTF8
           
-          @"
-# Test PowerShell script 2  
-Write-Host 'Hello from test script 2'
-"@ | Out-File -FilePath "test-scripts\test2.ps1" -Encoding UTF8
+          "# Test PowerShell script 2`nWrite-Host 'Hello from test script 2'" | Out-File -FilePath "test-scripts\test2.ps1" -Encoding UTF8
           
-          @"
-# Test PowerShell module
-function Test-Function { Write-Host 'Hello from test function' }
-"@ | Out-File -FilePath "test-scripts\TestModule.psm1" -Encoding UTF8
+          "# Test PowerShell module`nfunction Test-Function { Write-Host 'Hello from test function' }" | Out-File -FilePath "test-scripts\TestModule.psm1" -Encoding UTF8
           
-          @"
-# Test PowerShell script in subdirectory
-Write-Host 'Hello from subdirectory script'
-"@ | Out-File -FilePath "test-scripts\subdir\test3.ps1" -Encoding UTF8
+          "# Test PowerShell script in subdirectory`nWrite-Host 'Hello from subdirectory script'" | Out-File -FilePath "test-scripts\subdir\test3.ps1" -Encoding UTF8
           
           # Create non-PowerShell file that should be ignored
           "This is not a PowerShell file" | Out-File -FilePath "test-scripts\readme.txt" -Encoding UTF8
           
-          Write-Host "✅ Test PowerShell files created" -ForegroundColor Green
+          Write-Host "[OK] Test PowerShell files created" -ForegroundColor Green
 
       - name: Create test certificate and import
         shell: pwsh
@@ -131,7 +119,7 @@ Write-Host 'Hello from subdirectory script'
           echo "TEST_CERT_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
           echo "IMPORTED_CERT_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
           
-          Write-Host "✅ Test certificate created with thumbprint: $($cert.Thumbprint)" -ForegroundColor Green
+          Write-Host "[OK] Test certificate created with thumbprint: $($cert.Thumbprint)" -ForegroundColor Green
 
       - name: Test Code Sign Action (Test Mode)
         uses: ./codesign-files-windows
@@ -165,7 +153,7 @@ Write-Host 'Hello from subdirectory script'
           }
           
           if ($signedCount -eq $files.Count) {
-            Write-Host "✅ All PowerShell files successfully signed ($signedCount/$($files.Count))" -ForegroundColor Green
+            Write-Host "[OK] All PowerShell files successfully signed ($signedCount/$($files.Count))" -ForegroundColor Green
           } else {
             throw "Only $signedCount out of $($files.Count) files were successfully signed"
           }
@@ -176,7 +164,7 @@ Write-Host 'Hello from subdirectory script'
           if ($cert) {
             Write-Warning "Certificate was not cleaned up as expected"
           } else {
-            Write-Host "✅ Certificate was properly cleaned up" -ForegroundColor Green
+            Write-Host "[OK] Certificate was properly cleaned up" -ForegroundColor Green
           }
 
   test-deploy-action:
@@ -208,7 +196,7 @@ Write-Host 'Hello from subdirectory script'
           "Certificate file" | Out-File -FilePath "test-source\test.crt" -Encoding UTF8
           "Config JSON" | Out-File -FilePath "test-source\Config.json" -Encoding UTF8
           
-          Write-Host "✅ Test source structure created" -ForegroundColor Green
+          Write-Host "[OK] Test source structure created" -ForegroundColor Green
 
       - name: Test Deploy Action (Test Mode)
         uses: ./deploy-files-windows
@@ -241,10 +229,10 @@ Write-Host 'Hello from subdirectory script'
           foreach ($expectedFile in $expectedFiles) {
             $fullPath = Join-Path $destPath $expectedFile
             if (Test-Path $fullPath) {
-              Write-Host "✅ Found: $expectedFile" -ForegroundColor Green
+              Write-Host "[OK] Found: $expectedFile" -ForegroundColor Green
               $deployedCount++
             } else {
-              Write-Host "❌ Missing: $expectedFile" -ForegroundColor Red
+              Write-Host "[ERROR] Missing: $expectedFile" -ForegroundColor Red
             }
           }
           
@@ -260,10 +248,10 @@ Write-Host 'Hello from subdirectory script'
           foreach ($excludedFile in $excludedFiles) {
             $fullPath = Join-Path $destPath $excludedFile
             if (-not (Test-Path $fullPath)) {
-              Write-Host "✅ Properly excluded: $excludedFile" -ForegroundColor Green
+              Write-Host "[OK] Properly excluded: $excludedFile" -ForegroundColor Green
               $properlyExcluded++
             } else {
-              Write-Host "❌ Should have been excluded: $excludedFile" -ForegroundColor Red
+              Write-Host "[ERROR] Should have been excluded: $excludedFile" -ForegroundColor Red
             }
           }
           
@@ -273,7 +261,7 @@ Write-Host 'Hello from subdirectory script'
           Write-Host "  Files properly excluded: $properlyExcluded/$($excludedFiles.Count)" -ForegroundColor Gray
           
           if ($deployedCount -eq $expectedFiles.Count -and $properlyExcluded -eq $excludedFiles.Count) {
-            Write-Host "✅ Deploy action test passed" -ForegroundColor Green
+            Write-Host "[OK] Deploy action test passed" -ForegroundColor Green
           } else {
             throw "Deploy action test failed: not all files handled correctly"
           }
@@ -281,5 +269,5 @@ Write-Host 'Hello from subdirectory script'
           # Clean up
           if (Test-Path $destPath) {
             Remove-Item $destPath -Recurse -Force
-            Write-Host "✅ Test deployment directory cleaned up" -ForegroundColor Green
+            Write-Host "[OK] Test deployment directory cleaned up" -ForegroundColor Green
           }
