@@ -1,5 +1,8 @@
+---
 name: 'Import Code-Signing Certificate Windows'
-description: 'Import PFX certificate from base64-encoded secrets into the Windows certificate store for code signing operations'
+description: >
+  Import PFX certificate from base64-encoded secrets into the Windows
+  certificate store for code signing operations
 inputs:
   pfx_base64:
     description: 'Base64-encoded PFX certificate data'
@@ -21,7 +24,8 @@ runs:
         CODESIGN_PFX_PASSWORD: ${{ inputs.pfx_password }}
       run: |
         $output = & "${{ github.action_path }}/Import-CodeSigningCert.ps1"
-        $thumbprint = $output | Where-Object { $_ -match "Certificate thumbprint: (.+)" } | ForEach-Object { $_.Split(': ')[1] }
+        $thumbprint = $output | Where-Object { $_ -match "Certificate thumbprint: (.+)" } |
+          ForEach-Object { $_.Split(': ')[1] }
         if ($thumbprint) {
           Write-Output "thumbprint=$thumbprint" >> $env:GITHUB_OUTPUT
         }

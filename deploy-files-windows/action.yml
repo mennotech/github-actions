@@ -1,5 +1,8 @@
+---
 name: 'Deploy Files Windows'
-description: 'Deploy files to target directory using robocopy with intelligent exclusions and permission validation'
+description: >
+  Deploy files to target directory using robocopy with intelligent
+  exclusions and permission validation
 inputs:
   source_path:
     description: 'Source directory to copy from'
@@ -9,11 +12,13 @@ inputs:
     description: 'Target directory to copy to'
     required: true
   exclude_dirs:
-    description: 'Comma-separated list of directories to exclude from deployment'
+    description: >
+      Comma-separated list of directories to exclude from deployment
     required: false
     default: '.git,.github,_work,logs'
   exclude_files:
-    description: 'Comma-separated list of file patterns to exclude from deployment'
+    description: >
+      Comma-separated list of file patterns to exclude from deployment
     required: false
     default: '*.crt,Config.json'
   robocopy_options:
@@ -21,7 +26,9 @@ inputs:
     required: false
     default: '/R:2,/W:2,/NDL,/NFL,/NP'
   test_only:
-    description: 'Perform a dry run to list files that would be copied without actually copying'
+    description: >
+      Perform a dry run to list files that would be copied without
+      actually copying
     required: false
     default: 'false'
 runs:
