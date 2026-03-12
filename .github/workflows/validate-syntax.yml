@@ -51,7 +51,8 @@ jobs:
 
       - name: Validate PowerShell syntax
         shell: pwsh
-        run: .github/scripts/Validate-PowerShellSyntax.ps1
+        run: |
+          & "${{ github.workspace }}\.github\scripts\Validate-PowerShellSyntax.ps1"
 
   validate-action-metadata:
     name: Validate Action Metadata

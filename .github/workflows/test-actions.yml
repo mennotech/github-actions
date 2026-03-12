@@ -20,7 +20,8 @@ jobs:
 
       - name: Create test certificate
         shell: pwsh
-        run: .github/scripts/Create-TestCertificateForImport.ps1
+        run: |
+          & "${{ github.workspace }}\.github\scripts\Create-TestCertificateForImport.ps1"
 
       - name: Test Import Certificate Action
         id: import-test
@@ -31,7 +32,8 @@ jobs:
 
       - name: Verify certificate import
         shell: pwsh
-        run: .github/scripts/Verify-CertificateImportAction.ps1 -CertificateThumbprint "${{ steps.import-test.outputs.certificate_thumbprint }}"
+        run: |
+          & "${{ github.workspace }}\.github\scripts\Verify-CertificateImportAction.ps1" -CertificateThumbprint "${{ steps.import-test.outputs.certificate_thumbprint }}"
 
   test-codesign-action:
     name: Test Code Sign Action
@@ -43,11 +45,13 @@ jobs:
 
       - name: Create test PowerShell files
         shell: pwsh
-        run: .github/scripts/Create-TestPowerShellFilesForSigning.ps1 -TestPath "test-scripts"
+        run: |
+          & "${{ github.workspace }}\.github\scripts\Create-TestPowerShellFilesForSigning.ps1" -TestPath "test-scripts"
 
       - name: Create test certificate and import
         shell: pwsh
-        run: .github/scripts/Create-TestCertificateForCodeSigning.ps1
+        run: |
+          & "${{ github.workspace }}\.github\scripts\Create-TestCertificateForCodeSigning.ps1"
 
       - name: Test Code Sign Action (Test Mode)
         uses: ./codesign-files-windows
@@ -65,7 +69,8 @@ jobs:
 
       - name: Verify signatures
         shell: pwsh
-        run: .github/scripts/Verify-CodeSigningResults.ps1 -TestPath "test-scripts" -TestCertThumbprint "${{ env.TEST_CERT_THUMBPRINT }}"
+        run: |
+          & "${{ github.workspace }}\.github\scripts\Verify-CodeSigningResults.ps1" -TestPath "test-scripts" -TestCertThumbprint "${{ env.TEST_CERT_THUMBPRINT }}"
 
   test-deploy-action:
     name: Test Deploy Action
@@ -76,7 +81,8 @@ jobs:
 
       - name: Create test source structure
         shell: pwsh
-        run: .github/scripts/Create-TestSourceFiles.ps1 -SourcePath test-source
+        run: |
+          & "${{ github.workspace }}\.github\scripts\Create-TestSourceStructure.ps1" -SourcePath "test-source"
 
       - name: Test Deploy Action (Test Mode)
         uses: ./deploy-files-windows
@@ -93,4 +99,5 @@ jobs:
 
       - name: Verify deployment
         shell: pwsh
-        run: .github/scripts/Verify-TestDeployment.ps1 -DestinationPath "C:\temp\deploy-test" -SourcePath "test-source"
+        run: |
+          & "${{ github.workspace }}\.github\scripts\Verify-TestDeployment.ps1" -DestinationPath "C:\temp\deploy-test" -SourcePath "test-source"
