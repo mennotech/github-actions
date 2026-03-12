@@ -5,16 +5,79 @@
 
 .DESCRIPTION
     Checks all PowerShell files (.ps1, .psm1, .psd1) for syntax errors using PowerShell's parser.
+    Can also run PSScriptAnalyzer with repository-specific rules.
+
+.PARAMETER RunScriptAnalyzer
+    Runs PSScriptAnalyzer after syntax validation.
+
+.PARAMETER RequireScriptAnalyzer
+    Fails validation if PSScriptAnalyzer is not installed when linting is requested.
+
+.PARAMETER ScriptAnalyzerSettingsPath
+    Path to the PSScriptAnalyzer settings file.
 
 .EXAMPLE
     Validate-PowerShellSyntax.ps1
+
+.EXAMPLE
+    Validate-PowerShellSyntax.ps1 -RunScriptAnalyzer -RequireScriptAnalyzer
 #>
 
 [CmdletBinding()]
-param()
+param(
+    [Parameter()]
+    [switch]$RunScriptAnalyzer,
+
+    [Parameter()]
+    [switch]$RequireScriptAnalyzer,
+
+    [Parameter()]
+    [string]$ScriptAnalyzerSettingsPath = '.\PSScriptAnalyzerSettings.psd1'
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+function Invoke-RepositoryScriptAnalyzer {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$SettingsPath,
+
+        [Parameter()]
+        [switch]$RequireModule
+    )
+
+    $module = Get-Module -ListAvailable PSScriptAnalyzer | Select-Object -First 1
+    if (-not $module) {
+        if ($RequireModule) {
+            throw 'PSScriptAnalyzer is not installed.'
+        }
+
+        Write-Host '[Warning] PSScriptAnalyzer not installed; skipping lint validation' -ForegroundColor Yellow
+        return @()
+    }
+
+    if (-not (Test-Path -Path $SettingsPath)) {
+        throw "PSScriptAnalyzer settings file not found: $SettingsPath"
+    }
+
+    Write-Host 'Running PSScriptAnalyzer...' -ForegroundColor Yellow
+    $resolvedSettingsPath = (Resolve-Path -Path $SettingsPath).Path
+    $results = @(Invoke-ScriptAnalyzer -Path '.' -Recurse -Settings $resolvedSettingsPath)
+
+    if ($results.Count -eq 0) {
+        Write-Host '[OK] PSScriptAnalyzer found no issues' -ForegroundColor Green
+        return @()
+    }
+
+    Write-Host '[ERROR] PSScriptAnalyzer found issues:' -ForegroundColor Red
+    foreach ($result in $results) {
+        Write-Host "  [$($result.RuleName)] $($result.ScriptName):$($result.Line) - $($result.Message)" -ForegroundColor Red
+    }
+
+    return $results
+}
 
 try {
     Write-Host "Validating PowerShell syntax..." -ForegroundColor Yellow
@@ -42,7 +105,7 @@ try {
             # Parse the PowerShell file
             $tokens = $null
             $errors = $null
-            $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
                 $file.FullName, [ref]$tokens, [ref]$errors
             )
             
@@ -57,19 +120,21 @@ try {
                 $hasErrors = $true
             }
             
-            # Check for common PowerShell best practices
-            $content = Get-Content -Path $file.FullName -Raw
-            
-            # Check for CmdletBinding on functions
-            if ($content -match 'function\s+\w+' -and $content -notmatch '\[CmdletBinding\(\)\]') {
-                Write-Host "[Warning] $($file.Name): Consider adding [CmdletBinding()] to functions" -ForegroundColor Yellow
-                $warningCount++
-            }
-            
-            # Check for proper error handling
-            if ($content -notmatch '\$ErrorActionPreference') {
-                Write-Host "[Warning] $($file.Name): Consider setting ErrorActionPreference" -ForegroundColor Yellow
-                $warningCount++
+            if ($file.Extension -in @('.ps1', '.psm1')) {
+                # Check for common PowerShell best practices
+                $content = Get-Content -Path $file.FullName -Raw
+
+                # Check for CmdletBinding on functions
+                if ($content -match 'function\s+\w+' -and $content -notmatch '\[CmdletBinding\(\)\]') {
+                    Write-Host "[Warning] $($file.Name): Consider adding [CmdletBinding()] to functions" -ForegroundColor Yellow
+                    $warningCount++
+                }
+
+                # Check for proper error handling
+                if ($content -notmatch '\$ErrorActionPreference') {
+                    Write-Host "[Warning] $($file.Name): Consider setting ErrorActionPreference" -ForegroundColor Yellow
+                    $warningCount++
+                }
             }
             
         } catch {
@@ -83,15 +148,29 @@ try {
     Write-Host "  PowerShell files: $($psFiles.Count)" -ForegroundColor Gray
     Write-Host "  Syntax errors: $errorCount" -ForegroundColor Gray
     Write-Host "  Warnings: $warningCount" -ForegroundColor Gray
-    
+
     if ($hasErrors) {
         Write-Host "`n[ERROR] PowerShell syntax validation failed" -ForegroundColor Red
         exit 1
-    } else {
-        Write-Host "`n[OK] All PowerShell files passed syntax validation" -ForegroundColor Green
-        if ($warningCount -gt 0) {
-            Write-Host "Note: $warningCount warnings found (non-blocking)" -ForegroundColor Yellow
-        }
+    }
+
+    $scriptAnalyzerResults = @()
+    if ($RunScriptAnalyzer) {
+        $scriptAnalyzerResults = @(Invoke-RepositoryScriptAnalyzer -SettingsPath $ScriptAnalyzerSettingsPath -RequireModule:$RequireScriptAnalyzer)
+        Write-Host "  Lint issues: $($scriptAnalyzerResults.Count)" -ForegroundColor Gray
+    }
+    
+    if ($scriptAnalyzerResults.Count -gt 0) {
+        Write-Host "`n[ERROR] PowerShell lint validation failed" -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host "`n[OK] All PowerShell files passed syntax validation" -ForegroundColor Green
+    if ($RunScriptAnalyzer) {
+        Write-Host '[OK] All PowerShell files passed lint validation' -ForegroundColor Green
+    }
+    if ($warningCount -gt 0) {
+        Write-Host "Note: $warningCount warnings found (non-blocking)" -ForegroundColor Yellow
     }
     
 } catch {

@@ -44,17 +44,23 @@ jobs:
             done
 
   validate-powershell:
-    name: Validate PowerShell Syntax
+    name: Validate PowerShell Syntax And Lint
     runs-on: windows-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
+
       - name: Validate PowerShell syntax
         shell: pwsh
         run: |
           $scriptPath = "${{ github.workspace }}\.github\scripts\Validate-PowerShellSyntax.ps1"
-          & $scriptPath
+          & $scriptPath -RunScriptAnalyzer -RequireScriptAnalyzer
 
   validate-action-metadata:
     name: Validate Action Metadata
