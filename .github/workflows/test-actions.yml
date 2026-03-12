@@ -1,10 +1,11 @@
+---
 name: Test Actions
 
 on:
   push:
-    branches: [ main, 'building-v*' ]
+    branches: [main, 'building-v*']
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -21,7 +22,8 @@ jobs:
       - name: Create test certificate
         shell: pwsh
         run: |
-          & "${{ github.workspace }}\.github\scripts\Create-TestCertificateForImport.ps1"
+          $scriptPath = "${{ github.workspace }}\.github\scripts\\Create-TestCertificateForImport.ps1"
+          & $scriptPath
 
       - name: Test Import Certificate Action
         id: import-test
@@ -33,7 +35,9 @@ jobs:
       - name: Verify certificate import
         shell: pwsh
         run: |
-          & "${{ github.workspace }}\.github\scripts\Verify-CertificateImportAction.ps1" -CertificateThumbprint "${{ steps.import-test.outputs.certificate_thumbprint }}"
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-CertificateImportAction.ps1"
+          $thumbprint = "${{ steps.import-test.outputs.certificate_thumbprint }}"
+          & $scriptPath -CertificateThumbprint $thumbprint
 
   test-codesign-action:
     name: Test Code Sign Action
@@ -46,12 +50,14 @@ jobs:
       - name: Create test PowerShell files
         shell: pwsh
         run: |
-          & "${{ github.workspace }}\.github\scripts\Create-TestPowerShellFilesForSigning.ps1" -TestPath "test-scripts"
+          $scriptPath = "${{ github.workspace }}\.github\scripts\\Create-TestPowerShellFilesForSigning.ps1"
+          & $scriptPath -TestPath "test-scripts"
 
       - name: Create test certificate and import
         shell: pwsh
         run: |
-          & "${{ github.workspace }}\.github\scripts\Create-TestCertificateForCodeSigning.ps1"
+          $scriptPath = "${{ github.workspace }}\.github\scripts\\Create-TestCertificateForCodeSigning.ps1"
+          & $scriptPath
 
       - name: Test Code Sign Action (Test Mode)
         uses: ./codesign-files-windows
@@ -70,7 +76,9 @@ jobs:
       - name: Verify signatures
         shell: pwsh
         run: |
-          & "${{ github.workspace }}\.github\scripts\Verify-CodeSigningResults.ps1" -TestPath "test-scripts" -TestCertThumbprint "${{ env.TEST_CERT_THUMBPRINT }}"
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-CodeSigningResults.ps1"
+          $thumbprint = "${{ env.TEST_CERT_THUMBPRINT }}"
+          & $scriptPath -TestPath "test-scripts" -TestCertThumbprint $thumbprint
 
   test-deploy-action:
     name: Test Deploy Action
@@ -82,12 +90,13 @@ jobs:
       - name: Create test source structure
         shell: pwsh
         run: |
-          & "${{ github.workspace }}\.github\scripts\Create-TestSourceStructure.ps1" -SourcePath "test-source"
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Create-TestSourceStructure.ps1"
+          & $scriptPath -SourcePath "test-source"
 
       - name: Test Deploy Action (Test Mode)
         uses: ./deploy-files-windows
         with:
-          source_path: test-source  
+          source_path: test-source
           destination_path: C:\temp\deploy-test
           test_only: true
 
@@ -100,4 +109,5 @@ jobs:
       - name: Verify deployment
         shell: pwsh
         run: |
-          & "${{ github.workspace }}\.github\scripts\Verify-TestDeployment.ps1" -DestinationPath "C:\temp\deploy-test" -SourcePath "test-source"
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-TestDeployment.ps1"
+          & $scriptPath -DestinationPath "C:\temp\deploy-test" -SourcePath "test-source"

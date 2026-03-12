@@ -1,10 +1,11 @@
+---
 name: Integration Tests
 
 on:
   push:
-    branches: [ main, 'building-v*' ]
+    branches: [main, 'building-v*']
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -21,12 +22,14 @@ jobs:
       - name: Setup test environment
         shell: pwsh
         run: |
-          & "${{ github.workspace }}\.github\scripts\Setup-IntegrationTestEnvironment.ps1" -ProjectPath "test-project"
+          $scriptPath = "${{ github.workspace }}\.github\scripts\\Setup-IntegrationTestEnvironment.ps1"
+          & $scriptPath -ProjectPath "test-project"
       - name: Create test code-signing certificate
         shell: pwsh
         id: create-cert
         run: |
-          & "${{ github.workspace }}\.github\scripts\Create-TestCertificate.ps1"
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Create-TestCertificate.ps1"
+          & $scriptPath
 
       - name: Step 1 - Import Code-Signing Certificate
         id: import-cert
@@ -38,7 +41,9 @@ jobs:
       - name: Verify certificate import
         shell: pwsh
         run: |
-          & "${{ github.workspace }}\.github\scripts\Verify-CertificateImport.ps1" -CertificateThumbprint "${{ steps.import-cert.outputs.certificate_thumbprint }}"
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-CertificateImport.ps1"
+          $thumbprint = "${{ steps.import-cert.outputs.certificate_thumbprint }}"
+          & $scriptPath -CertificateThumbprint $thumbprint
 
       - name: Step 2 - Sign PowerShell Files
         uses: ./codesign-files-windows
@@ -52,9 +57,10 @@ jobs:
       - name: Verify code signing results
         shell: pwsh
         run: |
-          & "${{ github.workspace }}\.github\scripts\Verify-IntegrationCodeSigning.ps1" -ProjectPath "test-project"
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-IntegrationCodeSigning.ps1"
+          & $scriptPath -ProjectPath "test-project"
 
-      - name: Step 3 - Deploy Files 
+      - name: Step 3 - Deploy Files
         uses: ./deploy-files-windows
         with:
           source_path: test-project
@@ -65,22 +71,25 @@ jobs:
       - name: Verify deployment results
         shell: pwsh
         run: |
-          & "${{ github.workspace }}\.github\scripts\Verify-IntegrationCodeSigning.ps1" -ProjectPath "C:\temp\integration-test-deploy"
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-IntegrationCodeSigning.ps1"
+          & $scriptPath -ProjectPath "C:\temp\integration-test-deploy"
 
       - name: Test deployed application
         shell: pwsh
         run: |
-          & "${{ github.workspace }}\.github\scripts\Test-DeployedApplication.ps1" -DeployPath "C:\temp\integration-test-deploy"
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Test-DeployedApplication.ps1"
+          & $scriptPath -DeployPath "C:\temp\integration-test-deploy"
 
       - name: Final cleanup and certificate removal
         if: always()
         shell: pwsh
         run: |
-          & "${{ github.workspace }}\.github\scripts\Cleanup-IntegrationTest.ps1" -TestPath "test-project"
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Cleanup-IntegrationTest.ps1"
+          & $scriptPath -TestPath "test-project"
 
   integration-test-summary:
     name: Integration Test Summary
-    runs-on: ubuntu-latest  
+    runs-on: ubuntu-latest
     needs: integration-test
     if: always()
     steps:
@@ -88,13 +97,13 @@ jobs:
         run: |
           echo "## [TEST] Integration Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           if [ "${{ needs.integration-test.result }}" == "success" ]; then
             echo "[OK] **Integration test passed successfully**" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "The complete workflow was validated:" >> $GITHUB_STEP_SUMMARY
             echo "1. [KEY] Certificate import from PFX" >> $GITHUB_STEP_SUMMARY
-            echo "2. [SIGN]  PowerShell file code signing" >> $GITHUB_STEP_SUMMARY  
+            echo "2. [SIGN]  PowerShell file code signing" >> $GITHUB_STEP_SUMMARY
             echo "3. [DEPLOY] File deployment with exclusions" >> $GITHUB_STEP_SUMMARY
             echo "4. [OK] Deployed application execution" >> $GITHUB_STEP_SUMMARY
             echo "5. [CLEANUP] Automatic certificate cleanup" >> $GITHUB_STEP_SUMMARY

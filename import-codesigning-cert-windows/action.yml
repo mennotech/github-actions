@@ -22,9 +22,9 @@ runs:
         CODESIGN_PFX_PASSWORD: ${{ inputs.pfx_password }}
       run: |
         $output = & "${{ github.action_path }}/Import-CodeSigningCert.ps1"
-        $thumbprint = $output
-          |  Where-Object { $_ -match "Certificate thumbprint: (.+)" }
-          |  ForEach-Object { $_.Split(': ')[1] }
+        $thumbprint = $output `
+          | Where-Object { $_ -match "Certificate thumbprint: (.+)" } `
+          | ForEach-Object { $_.Split(': ')[1] }
         if ($thumbprint) {
           Write-Output "thumbprint=$thumbprint" >> $env:GITHUB_OUTPUT
         }
