@@ -72,60 +72,41 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function Main {
-    $cert = $null
+$cert = $null
 
-    try {
-        Write-Host "Starting PowerShell file signing process..." -ForegroundColor Cyan
+try {
+    Write-Host "Starting PowerShell file signing process..." -ForegroundColor Cyan
 
-        # Find all PowerShell files to sign
-        $files = Find-PowerShellFile -Path $Path -Recurse:$Recurse -FileMatch $FileMatch -ExcludeDirs $ExcludeDirs
+    $files = Find-PowerShellFile -Path $Path -Recurse:$Recurse -FileMatch $FileMatch -ExcludeDirs $ExcludeDirs
 
-        if ($TestOnly) {
-            $null = Test-PowerShellFileSignature -Files $files -FailOnInvalid:$FailOnInvalid
-        } else {
-            # Get the code-signing certificate
-            $cert = Get-CodeSigningCertificate -CertThumbprint $CertThumbprint
-
-            if (-not $cert) {
-                throw "No code-signing certificate available to sign files."
-            }
-            # Sign the files
-            $null = Invoke-PowerShellFileSigning -Files $files -Certificate $cert -TimestampServer $TimestampServer
-        }
-
-
-    } catch {
-        Write-Error "PowerShell file signing failed: $_"
-        exit 1
-    } finally {
-        # Clean up certificate on error if requested
-        if ($CleanupCertificate -and $cert) {
-            try {
-                Write-Host "Cleaning up certificate: $($cert.Thumbprint)" -ForegroundColor Yellow
-                Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -Force
-                Write-Host "Certificate removed successfully" -ForegroundColor Green
-            } catch {
-                Write-Warning "Failed to remove certificate: $_"
-            }
-        }
-
-        Write-Host "PowerShell file signing process completed." -ForegroundColor Cyan
+    if ($TestOnly) {
+        $null = Test-PowerShellFileSignature -Files $files -FailOnInvalid:$FailOnInvalid
+    } else {
+        $cert = Get-CodeSigningCertificate -CertThumbprint $CertThumbprint
+        $null = Invoke-PowerShellFileSigning -Files $files -Certificate $cert -TimestampServer $TimestampServer
     }
 
+} catch {
+    Write-Error "PowerShell file signing failed: $_"
+    exit 1
+} finally {
+    if ($CleanupCertificate -and $cert) {
+        try {
+            Write-Host "Cleaning up certificate: $($cert.Thumbprint)" -ForegroundColor Yellow
+            Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -Force
+            Write-Host "Certificate removed successfully" -ForegroundColor Green
+        } catch {
+            Write-Warning "Failed to remove certificate: $_"
+        }
+    }
+
+    Write-Host "PowerShell file signing process completed." -ForegroundColor Cyan
 }
 
 
 #region Helper Functions
 
 function Get-CodeSigningCertificate {
-    <#
-    .SYNOPSIS
-        Retrieves a code-signing certificate from the certificate store.
-
-    .PARAMETER CertThumbprint
-        Specific certificate thumbprint to retrieve. If not provided, gets the first available code-signing certificate.
-    #>
     [CmdletBinding()]
     param(
         [Parameter()]
@@ -149,22 +130,6 @@ function Get-CodeSigningCertificate {
 }
 
 function Find-PowerShellFile {
-    <#
-    .SYNOPSIS
-        Finds PowerShell files in the specified path.
-
-    .PARAMETER Path
-        Root path to search for PowerShell files.
-
-    .PARAMETER Recurse
-        Search recursively in subdirectories.
-
-    .PARAMETER FileMatch
-        Array of file patterns to match.
-
-    .PARAMETER ExcludeDirs
-        Array of directory names to exclude from search.
-    #>
     [CmdletBinding()]
     [OutputType([System.IO.FileInfo[]])]
     param(
@@ -194,28 +159,20 @@ function Find-PowerShellFile {
         Write-Host "  Excluding directories: $($ExcludeDirs -join ', ')" -ForegroundColor Gray
     }
 
-    $files = @()
-    foreach ($pattern in $FileMatch) {
-        $foundFiles = Get-ChildItem @searchParams -Filter $pattern
-
-        # Filter out files in excluded directories
-        if ($ExcludeDirs.Count -gt 0) {
-            $foundFiles = $foundFiles | Where-Object {
-                $filePath = $_.FullName
-                $isExcluded = $false
-                foreach ($excludeDir in $ExcludeDirs) {
-                    if ($filePath -like "*\$excludeDir\*" -or $filePath -like "*/$excludeDir/*") {
-                        $isExcluded = $true
-                        Write-Host "Excluding file in directory '$excludeDir': $filePath" -ForegroundColor Yellow
-                        break
-                    }
+    $files = foreach ($pattern in $FileMatch) {
+        Get-ChildItem @searchParams -Filter $pattern | Where-Object {
+            $filePath = $_.FullName
+            foreach ($excludeDir in $ExcludeDirs) {
+                if ($filePath -like "*\$excludeDir\*" -or $filePath -like "*/$excludeDir/*") {
+                    Write-Host "Excluding file in directory '$excludeDir': $filePath" -ForegroundColor Yellow
+                    return $false
                 }
-                -not $isExcluded
             }
-        }
 
-        $files += $foundFiles
+            return $true
+        }
     }
+    $files = [System.IO.FileInfo[]]@($files)
 
     if ($files.Count -eq 0) {
         throw "No PowerShell files found to sign in path: $Path"
@@ -226,16 +183,6 @@ function Find-PowerShellFile {
 }
 
 function Test-PowerShellFileSignature {
-    <#
-    .SYNOPSIS
-        Tests the digital signatures of PowerShell files and provides a detailed report.
-
-    .PARAMETER Files
-        Array of FileInfo objects representing the PowerShell files to test.
-
-    .PARAMETER FailOnInvalid
-        Throw an error if any files have invalid signatures.
-    #>
     [CmdletBinding()]
     [OutputType([System.Collections.Hashtable])]
     param(
@@ -285,20 +232,17 @@ function Test-PowerShellFileSignature {
         }
     }
 
-    # Summary report
     Write-Host "`nSignature Verification Summary:" -ForegroundColor Cyan
     Write-Host "  Total files checked: $($Files.Count)" -ForegroundColor Gray
     Write-Host "  Valid signatures: $($validSignatures.Count)" -ForegroundColor Green
     Write-Host "  Invalid/Missing signatures: $($invalidSignatures.Count)" -ForegroundColor $(if ($invalidSignatures.Count -gt 0) { 'Red' } else { 'Gray' })
 
-    # Show details for invalid signatures
     if ($invalidSignatures.Count -gt 0 -AND $FailOnInvalid) {
         throw "Signature verification failed: $($invalidSignatures.Count) files have invalid or missing signatures"
     } else {
         Write-Host "All PowerShell files have valid signatures" -ForegroundColor Green
     }
 
-    # Show valid signature details
     if ($validSignatures.Count -gt 0) {
         Write-Host "`nValid Signature Details:" -ForegroundColor Gray
         $validSignatures | ForEach-Object {
@@ -314,19 +258,6 @@ function Test-PowerShellFileSignature {
 }
 
 function Invoke-PowerShellFileSigning {
-    <#
-    .SYNOPSIS
-        Signs PowerShell files with the specified certificate and timestamp server.
-
-    .PARAMETER Files
-        Array of FileInfo objects representing the PowerShell files to sign.
-
-    .PARAMETER Certificate
-        The code-signing certificate to use for signing.
-
-    .PARAMETER TimestampServer
-        URL of the timestamp server for timestamping signatures.
-    #>
     [CmdletBinding()]
     [OutputType([System.Collections.Hashtable])]
     param(
@@ -383,5 +314,3 @@ function Invoke-PowerShellFileSigning {
 }
 
 #endregion
-
-Main
