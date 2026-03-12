@@ -90,6 +90,8 @@ steps:
 For contributors and maintainers:
 
 - **📋 [Development Instructions](.github/INSTRUCTIONS.md)** - Detailed guidelines for PowerShell conventions, action development patterns, security practices, testing procedures, and release workflow
+- **📝 [Changelog](./CHANGELOG.md)** - User-facing history of released changes
+- **🚀 [Release Guide](./RELEASE.md)** - Maintainer checklist for tagging and publishing releases
 
 ## Security Notes
 
