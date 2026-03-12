@@ -1,0 +1,285 @@
+name: Test Actions
+
+on:
+  push:
+    branches: [ main, 'building-v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-import-cert-action:
+    name: Test Import Certificate Action
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create test certificate
+        shell: pwsh
+        run: |
+          Write-Host "Creating test certificate for validation..." -ForegroundColor Cyan
+          
+          # Create a self-signed certificate for testing
+          $cert = New-SelfSignedCertificate -Subject "CN=TestCert" -CertStoreLocation "Cert:\CurrentUser\My" -KeyUsage DigitalSignature -Type CodeSigningCert
+          
+          # Export to PFX with password
+          $password = ConvertTo-SecureString "TestPassword123!" -AsPlainText -Force
+          $pfxPath = "$env:TEMP\test.pfx"
+          Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $password
+          
+          # Convert to base64
+          $pfxBytes = [IO.File]::ReadAllBytes($pfxPath)
+          $pfxBase64 = [Convert]::ToBase64String($pfxBytes)
+          
+          # Set environment variables for the test
+          echo "TEST_PFX_BASE64=$pfxBase64" >> $env:GITHUB_ENV
+          echo "TEST_PFX_PASSWORD=TestPassword123!" >> $env:GITHUB_ENV
+          
+          # Clean up cert from store and file
+          Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -Force
+          Remove-Item $pfxPath -Force
+          
+          Write-Host "✅ Test certificate created and exported" -ForegroundColor Green
+
+      - name: Test Import Certificate Action
+        id: import-test
+        uses: ./import-codesigning-cert-windows
+        with:
+          pfx_base64: ${{ env.TEST_PFX_BASE64 }}
+          pfx_password: ${{ env.TEST_PFX_PASSWORD }}
+
+      - name: Verify certificate import
+        shell: pwsh
+        run: |
+          Write-Host "Verifying certificate import..." -ForegroundColor Yellow
+          
+          $thumbprint = "${{ steps.import-test.outputs.certificate_thumbprint }}"
+          if (-not $thumbprint) {
+            throw "No certificate thumbprint returned from action"
+          }
+          
+          Write-Host "Certificate thumbprint: $thumbprint" -ForegroundColor Gray
+          
+          # Verify certificate exists in store
+          $cert = Get-ChildItem "Cert:\CurrentUser\My\$thumbprint" -ErrorAction SilentlyContinue
+          if (-not $cert) {
+            throw "Certificate not found in certificate store"
+          }
+          
+          Write-Host "✅ Certificate successfully imported and verified" -ForegroundColor Green
+          
+          # Clean up test certificate
+          Remove-Item "Cert:\CurrentUser\My\$thumbprint" -Force
+          Write-Host "✅ Test certificate cleaned up" -ForegroundColor Green
+
+  test-codesign-action:
+    name: Test Code Sign Action
+    runs-on: windows-latest
+    needs: test-import-cert-action
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create test PowerShell files
+        shell: pwsh
+        run: |
+          Write-Host "Creating test PowerShell files..." -ForegroundColor Cyan
+          
+          # Create test directory structure
+          New-Item -ItemType Directory -Path "test-scripts" -Force | Out-Null
+          New-Item -ItemType Directory -Path "test-scripts\subdir" -Force | Out-Null
+          
+          # Create test .ps1 files
+          @"
+# Test PowerShell script 1
+Write-Host 'Hello from test script 1'
+"@ | Out-File -FilePath "test-scripts\test1.ps1" -Encoding UTF8
+          
+          @"
+# Test PowerShell script 2  
+Write-Host 'Hello from test script 2'
+"@ | Out-File -FilePath "test-scripts\test2.ps1" -Encoding UTF8
+          
+          @"
+# Test PowerShell module
+function Test-Function { Write-Host 'Hello from test function' }
+"@ | Out-File -FilePath "test-scripts\TestModule.psm1" -Encoding UTF8
+          
+          @"
+# Test PowerShell script in subdirectory
+Write-Host 'Hello from subdirectory script'
+"@ | Out-File -FilePath "test-scripts\subdir\test3.ps1" -Encoding UTF8
+          
+          # Create non-PowerShell file that should be ignored
+          "This is not a PowerShell file" | Out-File -FilePath "test-scripts\readme.txt" -Encoding UTF8
+          
+          Write-Host "✅ Test PowerShell files created" -ForegroundColor Green
+
+      - name: Create test certificate and import
+        shell: pwsh
+        run: |
+          Write-Host "Creating and importing test certificate..." -ForegroundColor Cyan
+          
+          # Create a self-signed certificate for code signing
+          $cert = New-SelfSignedCertificate -Subject "CN=TestCodeSignCert" -CertStoreLocation "Cert:\CurrentUser\My" -KeyUsage DigitalSignature -Type CodeSigningCert
+          
+          # Store thumbprint in environment for cleanup
+          echo "TEST_CERT_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
+          echo "IMPORTED_CERT_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
+          
+          Write-Host "✅ Test certificate created with thumbprint: $($cert.Thumbprint)" -ForegroundColor Green
+
+      - name: Test Code Sign Action (Test Mode)
+        uses: ./codesign-files-windows
+        with:
+          path: test-scripts
+          test_only: true
+          recurse: true
+
+      - name: Test Code Sign Action (Signing)
+        uses: ./codesign-files-windows
+        with:
+          path: test-scripts
+          recurse: true
+          cleanup_certificate: true
+
+      - name: Verify signatures
+        shell: pwsh
+        run: |
+          Write-Host "Verifying PowerShell file signatures..." -ForegroundColor Yellow
+          
+          $files = Get-ChildItem -Path "test-scripts" -Include "*.ps1", "*.psm1" -Recurse
+          $signedCount = 0
+          
+          foreach ($file in $files) {
+            $sig = Get-AuthenticodeSignature -FilePath $file.FullName
+            Write-Host "File: $($file.Name), Status: $($sig.Status)" -ForegroundColor Gray
+            
+            if ($sig.Status -eq 'Valid') {
+              $signedCount++
+            }
+          }
+          
+          if ($signedCount -eq $files.Count) {
+            Write-Host "✅ All PowerShell files successfully signed ($signedCount/$($files.Count))" -ForegroundColor Green
+          } else {
+            throw "Only $signedCount out of $($files.Count) files were successfully signed"
+          }
+          
+          # Verify certificate was cleaned up (should fail to find it)
+          $thumbprint = $env:TEST_CERT_THUMBPRINT
+          $cert = Get-ChildItem "Cert:\CurrentUser\My\$thumbprint" -ErrorAction SilentlyContinue
+          if ($cert) {
+            Write-Warning "Certificate was not cleaned up as expected"
+          } else {
+            Write-Host "✅ Certificate was properly cleaned up" -ForegroundColor Green
+          }
+
+  test-deploy-action:
+    name: Test Deploy Action
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create test source structure
+        shell: pwsh
+        run: |
+          Write-Host "Creating test source directory structure..." -ForegroundColor Cyan
+          
+          # Create source directory with various file types
+          New-Item -ItemType Directory -Path "test-source" -Force | Out-Null
+          New-Item -ItemType Directory -Path "test-source\.git" -Force | Out-Null
+          New-Item -ItemType Directory -Path "test-source\.github" -Force | Out-Null
+          New-Item -ItemType Directory -Path "test-source\scripts" -Force | Out-Null
+          
+          # Create files to deploy
+          "Main script content" | Out-File -FilePath "test-source\main.ps1" -Encoding UTF8
+          "Configuration content" | Out-File -FilePath "test-source\config.txt" -Encoding UTF8
+          "Subscript content" | Out-File -FilePath "test-source\scripts\subscript.ps1" -Encoding UTF8
+          
+          # Create files that should be excluded
+          "Git file" | Out-File -FilePath "test-source\.git\config" -Encoding UTF8
+          "GitHub workflow" | Out-File -FilePath "test-source\.github\workflow.yml" -Encoding UTF8
+          "Certificate file" | Out-File -FilePath "test-source\test.crt" -Encoding UTF8
+          "Config JSON" | Out-File -FilePath "test-source\Config.json" -Encoding UTF8
+          
+          Write-Host "✅ Test source structure created" -ForegroundColor Green
+
+      - name: Test Deploy Action (Test Mode)
+        uses: ./deploy-files-windows
+        with:
+          source_path: test-source  
+          destination_path: C:\temp\deploy-test
+          test_only: true
+
+      - name: Test Deploy Action (Actual Deploy)
+        uses: ./deploy-files-windows
+        with:
+          source_path: test-source
+          destination_path: C:\temp\deploy-test
+
+      - name: Verify deployment
+        shell: pwsh
+        run: |
+          Write-Host "Verifying deployment results..." -ForegroundColor Yellow
+          
+          $destPath = "C:\temp\deploy-test"
+          
+          # Check that expected files were deployed
+          $expectedFiles = @(
+            "main.ps1",
+            "config.txt", 
+            "scripts\subscript.ps1"
+          )
+          
+          $deployedCount = 0
+          foreach ($expectedFile in $expectedFiles) {
+            $fullPath = Join-Path $destPath $expectedFile
+            if (Test-Path $fullPath) {
+              Write-Host "✅ Found: $expectedFile" -ForegroundColor Green
+              $deployedCount++
+            } else {
+              Write-Host "❌ Missing: $expectedFile" -ForegroundColor Red
+            }
+          }
+          
+          # Check that excluded files were NOT deployed  
+          $excludedFiles = @(
+            ".git\config",
+            ".github\workflow.yml",
+            "test.crt",
+            "Config.json"
+          )
+          
+          $properlyExcluded = 0
+          foreach ($excludedFile in $excludedFiles) {
+            $fullPath = Join-Path $destPath $excludedFile
+            if (-not (Test-Path $fullPath)) {
+              Write-Host "✅ Properly excluded: $excludedFile" -ForegroundColor Green
+              $properlyExcluded++
+            } else {
+              Write-Host "❌ Should have been excluded: $excludedFile" -ForegroundColor Red
+            }
+          }
+          
+          # Summary
+          Write-Host "`nDeployment Summary:" -ForegroundColor Cyan
+          Write-Host "  Expected files deployed: $deployedCount/$($expectedFiles.Count)" -ForegroundColor Gray
+          Write-Host "  Files properly excluded: $properlyExcluded/$($excludedFiles.Count)" -ForegroundColor Gray
+          
+          if ($deployedCount -eq $expectedFiles.Count -and $properlyExcluded -eq $excludedFiles.Count) {
+            Write-Host "✅ Deploy action test passed" -ForegroundColor Green
+          } else {
+            throw "Deploy action test failed: not all files handled correctly"
+          }
+          
+          # Clean up
+          if (Test-Path $destPath) {
+            Remove-Item $destPath -Recurse -Force
+            Write-Host "✅ Test deployment directory cleaned up" -ForegroundColor Green
+          }

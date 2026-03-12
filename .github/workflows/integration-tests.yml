@@ -1,0 +1,397 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ main, 'building-v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration-test:
+    name: Complete Integration Test
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup test environment
+        shell: pwsh
+        run: |
+          Write-Host "Setting up integration test environment..." -ForegroundColor Cyan
+          
+          # Create test project structure  
+          New-Item -ItemType Directory -Path "test-project" -Force | Out-Null
+          New-Item -ItemType Directory -Path "test-project\scripts" -Force | Out-Null
+          New-Item -ItemType Directory -Path "test-project\.git" -Force | Out-Null
+          New-Item -ItemType Directory -Path "test-project\.github" -Force | Out-Null
+          
+          # Create PowerShell files to sign and deploy
+          @"
+#!/usr/bin/env pwsh
+<#
+.SYNOPSIS
+    Main application script for integration test.
+.DESCRIPTION
+    This is a test script that demonstrates the complete signing and deployment workflow.
+#>
+[CmdletBinding()]
+param(
+    [Parameter()]
+    [string]`$Message = "Hello from main script!"
+)
+
+Write-Host `$Message -ForegroundColor Green
+Write-Host "Script executed successfully" -ForegroundColor Cyan
+"@ | Out-File -FilePath "test-project\main.ps1" -Encoding UTF8
+
+          @"
+#!/usr/bin/env pwsh
+<#
+.SYNOPSIS
+    Utility functions module for integration test.
+#>
+
+function Get-TestInfo {
+    [CmdletBinding()]
+    param()
+    
+    return @{
+        Version = "1.0.0"
+        Name = "Integration Test Module"
+        Author = "Mennotech GitHub Actions"
+    }
+}
+
+function Invoke-TestFunction {
+    [CmdletBinding()]
+    param(
+        [Parameter()]
+        [string]`$InputText = "Default test input"
+    )
+    
+    Write-Host "Test function called with: `$InputText" -ForegroundColor Yellow
+    return "Processed: `$InputText"
+}
+
+Export-ModuleMember -Function Get-TestInfo, Invoke-TestFunction
+"@ | Out-File -FilePath "test-project\scripts\TestUtils.psm1" -Encoding UTF8
+
+          @"
+#!/usr/bin/env pwsh
+<#
+.SYNOPSIS
+    Helper script for the integration test project.
+#>
+
+# Import the test utilities
+Import-Module "`$PSScriptRoot\TestUtils.psm1" -Force
+
+Write-Host "Helper script starting..." -ForegroundColor Cyan
+
+# Use the module functions
+`$info = Get-TestInfo
+Write-Host "Module info: `$(`$info.Name) v`$(`$info.Version)" -ForegroundColor Gray
+
+`$result = Invoke-TestFunction -InputText "Integration test data"
+Write-Host "Function result: `$result" -ForegroundColor Gray
+
+Write-Host "Helper script completed successfully" -ForegroundColor Green
+"@ | Out-File -FilePath "test-project\scripts\helper.ps1" -Encoding UTF8
+
+          @"
+@{
+    RootModule = 'TestUtils.psm1'
+    ModuleVersion = '1.0.0'
+    GUID = 'a1b2c3d4-e5f6-4321-8765-fedcba987654'
+    Author = 'Integration Test'
+    CompanyName = 'Mennotech'  
+    Copyright = 'Copyright (c) 2026 Mennotech. All rights reserved.'
+    Description = 'Test module for integration testing GitHub Actions'
+    FunctionsToExport = @('Get-TestInfo', 'Invoke-TestFunction')
+    CmdletsToExport = @()
+    VariablesToExport = '*'
+    AliasesToExport = @()
+}
+"@ | Out-File -FilePath "test-project\scripts\TestUtils.psd1" -Encoding UTF8
+
+          # Create files that should be deployed but not signed
+          "This is a configuration file for the test application" | Out-File -FilePath "test-project\config.txt" -Encoding UTF8
+          "README for the test project" | Out-File -FilePath "test-project\README.md" -Encoding UTF8
+          
+          # Create files that should be excluded from deployment
+          "Git config file" | Out-File -FilePath "test-project\.git\config" -Encoding UTF8
+          "GitHub workflow" | Out-File -FilePath "test-project\.github\test.yml" -Encoding UTF8
+          "Certificate file" | Out-File -FilePath "test-project\test.crt" -Encoding UTF8
+          
+          Write-Host "✅ Test project structure created" -ForegroundColor Green
+
+      - name: Create test code-signing certificate
+        shell: pwsh
+        id: create-cert
+        run: |
+          Write-Host "Creating test code-signing certificate..." -ForegroundColor Cyan
+          
+          # Create a self-signed certificate for code signing
+          $cert = New-SelfSignedCertificate -Subject "CN=IntegrationTestCert,O=Mennotech,C=US" -CertStoreLocation "Cert:\CurrentUser\My" -KeyUsage DigitalSignature -Type CodeSigningCert -NotAfter (Get-Date).AddDays(1)
+          
+          # Export to PFX with password  
+          $password = ConvertTo-SecureString "IntegrationTest123!" -AsPlainText -Force
+          $pfxPath = "$env:TEMP\integration-test.pfx"
+          Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $password | Out-Null
+          
+          # Convert to base64
+          $pfxBytes = [IO.File]::ReadAllBytes($pfxPath)
+          $pfxBase64 = [Convert]::ToBase64String($pfxBytes)
+          
+          # Clean up certificate from store (will be re-imported by action)
+          Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -Force
+          Remove-Item $pfxPath -Force
+          
+          # Output for next steps
+          echo "PFX_BASE64=$pfxBase64" >> $env:GITHUB_ENV
+          echo "PFX_PASSWORD=IntegrationTest123!" >> $env:GITHUB_ENV
+          
+          Write-Host "✅ Test certificate created and exported" -ForegroundColor Green
+
+      - name: Step 1 - Import Code-Signing Certificate
+        id: import-cert
+        uses: ./import-codesigning-cert-windows
+        with:
+          pfx_base64: ${{ env.PFX_BASE64 }}
+          pfx_password: ${{ env.PFX_PASSWORD }}
+
+      - name: Verify certificate import
+        shell: pwsh
+        run: |
+          Write-Host "Verifying certificate was imported..." -ForegroundColor Yellow
+          
+          $thumbprint = "${{ steps.import-cert.outputs.certificate_thumbprint }}"
+          Write-Host "Imported certificate thumbprint: $thumbprint" -ForegroundColor Gray
+          
+          if (-not $thumbprint) {
+            throw "No certificate thumbprint returned from import action"
+          }
+          
+          # Verify environment variable is set
+          if ($env:IMPORTED_CERT_THUMBPRINT -ne $thumbprint) {
+            throw "IMPORTED_CERT_THUMBPRINT environment variable not set correctly"
+          }
+          
+          # Verify certificate exists and has code signing capability
+          $cert = Get-ChildItem "Cert:\CurrentUser\My\$thumbprint" -ErrorAction SilentlyContinue
+          if (-not $cert) {
+            throw "Certificate not found in certificate store"
+          }
+          
+          Write-Host "✅ Certificate import verified successfully" -ForegroundColor Green
+
+      - name: Step 2 - Sign PowerShell Files
+        uses: ./codesign-files-windows
+        with:
+          path: test-project
+          recurse: true
+          file_match: "*.ps1,*.psm1,*.psd1"
+          exclude_dirs: ".git,.github"
+          cleanup_certificate: false  # Keep cert for verification
+
+      - name: Verify code signing results
+        shell: pwsh
+        run: |
+          Write-Host "Verifying PowerShell files were signed..." -ForegroundColor Yellow
+          
+          # Find all PowerShell files that should have been signed
+          $psFiles = Get-ChildItem -Path "test-project" -Include "*.ps1", "*.psm1", "*.psd1" -Recurse | Where-Object {
+            $_.FullName -notmatch '\\\.git\\' -and $_.FullName -notmatch '\\\.github\\'
+          }
+          
+          Write-Host "Found $($psFiles.Count) PowerShell files to verify" -ForegroundColor Gray
+          
+          $signedCount = 0
+          $validCount = 0
+          
+          foreach ($file in $psFiles) {
+            $sig = Get-AuthenticodeSignature -FilePath $file.FullName
+            Write-Host "File: $($file.Name)" -ForegroundColor Gray
+            Write-Host "  Status: $($sig.Status)" -ForegroundColor Gray
+            Write-Host "  Signer: $($sig.SignerCertificate.Subject)" -ForegroundColor Gray
+            
+            if ($sig.Status -ne 'NotSigned') {
+              $signedCount++
+            }
+            if ($sig.Status -eq 'Valid') {
+              $validCount++
+            }
+          }
+          
+          Write-Host "`nSigning Summary:" -ForegroundColor Cyan
+          Write-Host "  PowerShell files found: $($psFiles.Count)" -ForegroundColor Gray
+          Write-Host "  Files signed: $signedCount" -ForegroundColor Gray  
+          Write-Host "  Valid signatures: $validCount" -ForegroundColor Gray
+          
+          if ($validCount -eq $psFiles.Count -and $psFiles.Count -gt 0) {
+            Write-Host "✅ All PowerShell files successfully signed with valid signatures" -ForegroundColor Green
+          } else {
+            throw "Code signing failed: Expected $($psFiles.Count) valid signatures, got $validCount"
+          }
+
+      - name: Step 3 - Deploy Files 
+        uses: ./deploy-files-windows
+        with:
+          source_path: test-project
+          destination_path: C:\temp\integration-test-deploy
+          exclude_dirs: ".git,.github"
+          exclude_files: "*.crt,Config.json"
+
+      - name: Verify deployment results
+        shell: pwsh
+        run: |
+          Write-Host "Verifying deployment results..." -ForegroundColor Yellow
+          
+          $deployPath = "C:\temp\integration-test-deploy"
+          
+          # Check that the deployment directory exists
+          if (-not (Test-Path $deployPath)) {
+            throw "Deployment directory does not exist: $deployPath"
+          }
+          
+          # Verify expected files were deployed
+          $expectedFiles = @(
+            "main.ps1",
+            "config.txt", 
+            "README.md",
+            "scripts\helper.ps1",
+            "scripts\TestUtils.psm1", 
+            "scripts\TestUtils.psd1"
+          )
+          
+          $deployedCount = 0
+          foreach ($expectedFile in $expectedFiles) {
+            $fullPath = Join-Path $deployPath $expectedFile
+            if (Test-Path $fullPath) {
+              Write-Host "✅ Deployed: $expectedFile" -ForegroundColor Green
+              $deployedCount++
+              
+              # For PowerShell files, verify they still have valid signatures
+              if ($expectedFile -match '\.(ps1|psm1|psd1)$') {
+                $sig = Get-AuthenticodeSignature -FilePath $fullPath
+                if ($sig.Status -eq 'Valid') {
+                  Write-Host "  ✅ Signature valid in deployed file" -ForegroundColor Gray
+                } else {
+                  Write-Warning "  ⚠️  Signature status: $($sig.Status)"
+                }
+              }
+            } else {
+              Write-Host "❌ Missing: $expectedFile" -ForegroundColor Red
+            }
+          }
+          
+          # Verify excluded files were NOT deployed
+          $excludedPaths = @(
+            ".git\config",
+            ".github\test.yml", 
+            "test.crt"
+          )
+          
+          $properlyExcluded = 0
+          foreach ($excludedPath in $excludedPaths) {
+            $fullPath = Join-Path $deployPath $excludedPath
+            if (-not (Test-Path $fullPath)) {
+              Write-Host "✅ Properly excluded: $excludedPath" -ForegroundColor Green
+              $properlyExcluded++
+            } else {
+              Write-Host "❌ Should have been excluded: $excludedPath" -ForegroundColor Red
+            }
+          }
+          
+          Write-Host "`nDeployment Summary:" -ForegroundColor Cyan
+          Write-Host "  Expected files deployed: $deployedCount/$($expectedFiles.Count)" -ForegroundColor Gray
+          Write-Host "  Files properly excluded: $properlyExcluded/$($excludedPaths.Count)" -ForegroundColor Gray
+          
+          if ($deployedCount -eq $expectedFiles.Count -and $properlyExcluded -eq $excludedPaths.Count) {
+            Write-Host "✅ Integration test deployment successful" -ForegroundColor Green
+          } else {
+            throw "Deployment verification failed"
+          }
+
+      - name: Test deployed application
+        shell: pwsh
+        run: |
+          Write-Host "Testing deployed application functionality..." -ForegroundColor Cyan
+          
+          $deployPath = "C:\temp\integration-test-deploy"
+          
+          # Test main.ps1 execution
+          Write-Host "Testing main.ps1..." -ForegroundColor Yellow
+          try {
+            & "$deployPath\main.ps1" -Message "Integration test execution"
+            Write-Host "✅ main.ps1 executed successfully" -ForegroundColor Green
+          } catch {
+            throw "Failed to execute main.ps1: $_"
+          }
+          
+          # Test helper script with module import
+          Write-Host "Testing helper.ps1 with module import..." -ForegroundColor Yellow
+          try {
+            & "$deployPath\scripts\helper.ps1"
+            Write-Host "✅ helper.ps1 executed successfully" -ForegroundColor Green
+          } catch {
+            throw "Failed to execute helper.ps1: $_"
+          }
+          
+          Write-Host "✅ All deployed scripts execute correctly" -ForegroundColor Green
+
+      - name: Final cleanup and certificate removal
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "Performing final cleanup..." -ForegroundColor Yellow
+          
+          # Clean up certificate if it still exists
+          $thumbprint = "${{ steps.import-cert.outputs.certificate_thumbprint }}"
+          if ($thumbprint) {
+            $cert = Get-ChildItem "Cert:\CurrentUser\My\$thumbprint" -ErrorAction SilentlyContinue
+            if ($cert) {
+              Remove-Item "Cert:\CurrentUser\My\$thumbprint" -Force
+              Write-Host "✅ Certificate cleaned up: $thumbprint" -ForegroundColor Green
+            }
+          }
+          
+          # Clean up deployment directory
+          $deployPath = "C:\temp\integration-test-deploy"
+          if (Test-Path $deployPath) {
+            Remove-Item $deployPath -Recurse -Force
+            Write-Host "✅ Deployment directory cleaned up" -ForegroundColor Green
+          }
+          
+          Write-Host "✅ Integration test cleanup completed" -ForegroundColor Green
+
+  integration-test-summary:
+    name: Integration Test Summary
+    runs-on: ubuntu-latest  
+    needs: integration-test
+    if: always()
+    steps:
+      - name: Integration test results
+        run: |
+          echo "## 🧪 Integration Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.integration-test.result }}" == "success" ]; then
+            echo "✅ **Integration test passed successfully**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The complete workflow was validated:" >> $GITHUB_STEP_SUMMARY
+            echo "1. 🔑 Certificate import from PFX" >> $GITHUB_STEP_SUMMARY
+            echo "2. ✍️  PowerShell file code signing" >> $GITHUB_STEP_SUMMARY  
+            echo "3. 🚀 File deployment with exclusions" >> $GITHUB_STEP_SUMMARY
+            echo "4. ✅ Deployed application execution" >> $GITHUB_STEP_SUMMARY
+            echo "5. 🧹 Automatic certificate cleanup" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Integration test failed**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Please check the integration test job for detailed error information." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
