@@ -40,11 +40,11 @@ runs:
         ROBOCOPY_OPTIONS: ${{ inputs.robocopy_options }}
       run: |
         $args = @()
-        if ('${{ inputs.source_path }}' -ne '.') { 
-          $args += @('-SourcePath', '${{ inputs.source_path }}') 
+        if ('${{ inputs.source_path }}' -ne '.') {
+          $args += @('-SourcePath', '${{ inputs.source_path }}')
         }
-        if ('${{ inputs.test_only }}' -eq 'true') { 
-          $args += '-TestOnly' 
+        if ('${{ inputs.test_only }}' -eq 'true') {
+          $args += '-TestOnly'
         }
-        
+
         & "${{ github.action_path }}/Deploy-Files.ps1" @args
