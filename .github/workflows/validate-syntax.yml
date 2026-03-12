@@ -31,7 +31,7 @@ jobs:
           echo "Validating action.yml files..."
           find . -name "action.yml" -type f | while read -r file; do
             echo "Checking: $file"
-            yamllint "$file" || exit 1
+            yamllint -c .yamllint.yml "$file" || exit 1
           done
 
       - name: Validate workflow YAML files
@@ -39,7 +39,7 @@ jobs:
           echo "Validating workflow YAML files..."
           find .github/workflows -name "*.yml" -o -name "*.yaml" | while read -r file; do
             echo "Checking: $file"
-            yamllint "$file" || exit 1
+            yamllint -c .yamllint.yml "$file" || exit 1
           done
 
   validate-powershell:

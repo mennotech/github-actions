@@ -42,7 +42,7 @@ try {
     
     foreach ($file in $yamlFiles) {
         Write-Host "Validating: $($file.FullName)" -ForegroundColor Gray
-        $result = yamllint $file.FullName 2>&1
+        $result = yamllint -c ".yamllint.yml" $file.FullName 2>&1
         if ($LASTEXITCODE -eq 0) {
             Write-Host "[OK] $($file.Name)" -ForegroundColor Green
         } else {

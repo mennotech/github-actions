@@ -1,8 +1,6 @@
 ---
 name: 'Code-Sign PowerShell Files Windows'
-description: >
-  Sign PowerShell files (.ps1, .psm1, .psd1) with code-signing certificate
-  and optional automatic certificate cleanup
+description: 'Sign PowerShell files (.ps1, .psm1, .psd1) with code-signing certificate'
 inputs:
   path:
     description: 'Root path to search for PowerShell files'
@@ -21,8 +19,7 @@ inputs:
     required: false
     default: '*.ps1,*.psm1,*.psd1'
   exclude_dirs:
-    description: >
-      Comma-separated list of directories to exclude from search
+    description: 'Comma-separated list of directories to exclude from search'
     required: false
     default: '.git,.github'
   cert_thumbprint:

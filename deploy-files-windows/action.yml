@@ -1,8 +1,6 @@
 ---
 name: 'Deploy Files Windows'
-description: >
-  Deploy files to target directory using robocopy with intelligent
-  exclusions and permission validation
+description: 'Deploy files to target directory using robocopy with intelligent exclusions'
 inputs:
   source_path:
     description: 'Source directory to copy from'
