@@ -208,8 +208,10 @@ function Test-PowerShellFileSignature {
 
     if ($invalidSignatures.Count -gt 0 -AND $FailOnInvalid) {
         throw "Signature verification failed: $($invalidSignatures.Count) files have invalid or missing signatures"
-    } else {
+    } elseif ($invalidSignatures.Count -eq 0) {
         Write-Host "All PowerShell files have valid signatures" -ForegroundColor Green
+    } else {
+        Write-Host "Some PowerShell files are unsigned or have invalid signatures" -ForegroundColor Yellow
     }
 
     if ($validSignatures.Count -gt 0) {
@@ -285,6 +287,7 @@ function Invoke-PowerShellFileSigning {
 #endregion
 
 $cert = $null
+$exitCode = 0
 
 try {
     Write-Host "Starting PowerShell file signing process..." -ForegroundColor Cyan
@@ -292,7 +295,13 @@ try {
     $files = Find-PowerShellFile -Path $Path -Recurse:$Recurse -FileMatch $FileMatch -ExcludeDirs $ExcludeDirs
 
     if ($TestOnly) {
-        $null = Test-PowerShellFileSignature -Files $files -FailOnInvalid:$FailOnInvalid
+        $signatureResults = Test-PowerShellFileSignature -Files $files -FailOnInvalid:$FailOnInvalid
+        if ($signatureResults.InvalidSignatures.Count -gt 0) {
+            Write-Host "Test mode detected unsigned or invalid files" -ForegroundColor Yellow
+            $exitCode = 1
+        } else {
+            Write-Host "Test mode confirmed all matching files are already signed" -ForegroundColor Green
+        }
     } else {
         $cert = Get-CodeSigningCertificate -CertThumbprint $CertThumbprint
         $null = Invoke-PowerShellFileSigning -Files $files -Certificate $cert -TimestampServer $TimestampServer
@@ -300,7 +309,7 @@ try {
 
 } catch {
     Write-Error "PowerShell file signing failed: $_"
-    exit 1
+    $exitCode = 1
 } finally {
     if ($CleanupCertificate -and $cert) {
         try {
@@ -313,4 +322,5 @@ try {
     }
 
     Write-Host "PowerShell file signing process completed." -ForegroundColor Cyan
+    exit $exitCode
 }

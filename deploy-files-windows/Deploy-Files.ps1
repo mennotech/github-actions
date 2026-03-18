@@ -24,7 +24,10 @@
     Additional options to pass to robocopy.
 
 .PARAMETER TestOnly
-    Perform a dry run to list files that would be copied without actually copying them. Return 1 if differences are found, 0 if no differences.
+    Perform a dry run to list files that would be copied without actually copying them.
+    Returns 0 if no actionable copy differences are detected. When robocopy reports
+    extra destination items while exclusions are in use, the result is treated as
+    an ambiguous success and logged accordingly.
 
 .EXAMPLE
     Deploy-Scripts.ps1 -DestinationPath "C:\Scripts\exchange-apply-address-book-policy"
@@ -127,6 +130,7 @@ try {
     # Add test-only option
     if ($TestOnly) {
         $robocopyArgs += "/L"  # List only - don't copy
+        Write-Host "Test mode enabled: robocopy will report differences without modifying the destination" -ForegroundColor Gray
     }
 
     Write-Host "Executing: robocopy $($robocopyArgs -join ' ')" -ForegroundColor Gray
@@ -162,9 +166,13 @@ try {
     Write-Host "Result: $interpretation" -ForegroundColor $resultColor
 
     if ($TestOnly) {
-        # Ignore exit codes 0 and 2 as they indicate no differences found, or only extra files whichmay be configuration files we don't want to overwrite
-        if ($exitCode -eq 0 -OR $exitCode -eq 2) {
+        if ($exitCode -eq 0) {
             Write-Host "No differences found - deployment is up to date" -ForegroundColor Green
+            exit 0
+        } elseif ($exitCode -eq 2) {
+            Write-Warning "Robocopy reported extra destination files or directories."
+            Write-Warning "With /MIR combined with /XD or /XF, excluded items can still be classified as extra in dry-run mode."
+            Write-Warning "Treat this result as ambiguous: no copy/update drift was detected, but destination-only items may still exist."
             exit 0
         } else {
             Write-Host "Differences found - deployment is not up to date" -ForegroundColor Red

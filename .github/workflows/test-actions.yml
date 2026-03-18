@@ -61,12 +61,21 @@ jobs:
           $scriptPath = "${{ github.workspace }}\.github\scripts\Create-TestCertificate.ps1"
           & $scriptPath -Mode ImportToStore -Subject "CN=TestCodeSignCert"
 
-      - name: Test Code Sign Action (Test Mode)
+      - name: Test Code Sign Action (Test Mode detects unsigned files)
+        id: codesign-test-mode-before-signing
+        continue-on-error: true
         uses: ./codesign-files-windows
         with:
           path: test-scripts
           test_only: true
           recurse: true
+
+      - name: Verify test mode detects unsigned files
+        shell: pwsh
+        run: |
+          if ('${{ steps.codesign-test-mode-before-signing.outcome }}' -ne 'failure') {
+            throw 'Expected test_only mode to fail when unsigned files are present.'
+          }
 
       - name: Test Code Sign Action (Signing)
         uses: ./codesign-files-windows
@@ -74,6 +83,14 @@ jobs:
           path: test-scripts
           recurse: true
           cleanup_certificate: true
+
+      - name: Test Code Sign Action (Test Mode after signing)
+        uses: ./codesign-files-windows
+        with:
+          path: test-scripts
+          recurse: true
+          test_only: true
+          fail_on_invalid: true
 
       - name: Verify signatures
         shell: pwsh

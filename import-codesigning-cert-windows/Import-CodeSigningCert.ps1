@@ -26,11 +26,19 @@ param(
     [string]$PfxBase64 = $env:CODESIGN_PFX_BASE64,
 
     [Parameter()]
-    [System.Security.SecureString]$PfxPassword = (ConvertTo-SecureString $env:CODESIGN_PFX_PASSWORD -AsPlainText -Force)
+    [System.Security.SecureString]$PfxPassword = $(
+        if ($env:CODESIGN_PFX_PASSWORD) {
+            ConvertTo-SecureString $env:CODESIGN_PFX_PASSWORD -AsPlainText -Force
+        } else {
+            $null
+        }
+    )
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+$pfxPath = Join-Path ([System.IO.Path]::GetTempPath()) ("codesign_{0}.pfx" -f ([System.Guid]::NewGuid().ToString('N')))
 
 try {
     # Validate required parameters
@@ -44,7 +52,6 @@ try {
     Write-Host "Importing code-signing certificate..."
 
     # Create temporary file for the PFX
-    $pfxPath = Join-Path $PSScriptRoot "codesign.pfx"
     Write-Host "Writing PFX to temporary file: $pfxPath"
 
     try {
@@ -55,12 +62,15 @@ try {
 
     # Import certificate into CurrentUser\My for this runner session/job
     Write-Host "Importing certificate into Cert:\CurrentUser\My..."
-    $null = Import-PfxCertificate -FilePath $pfxPath -Password $PfxPassword -CertStoreLocation Cert:\CurrentUser\My
+    $importedCertificates = @(Import-PfxCertificate -FilePath $pfxPath -Password $PfxPassword -CertStoreLocation Cert:\CurrentUser\My)
 
-    # Confirm certificate is available for code signing
-    $cert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert | Select-Object -First 1
+    # Use the certificate that was just imported rather than picking an arbitrary one from the store.
+    $cert = $importedCertificates | Where-Object { $_.HasPrivateKey } | Select-Object -First 1
     if (-not $cert) {
-        throw "No code-signing certificate found in Cert:\CurrentUser\My after import."
+        $cert = $importedCertificates | Select-Object -First 1
+    }
+    if (-not $cert) {
+        throw "Import completed but no certificate object was returned."
     }
 
     Write-Host "Successfully loaded code signing certificate:" -ForegroundColor Green
@@ -73,13 +83,12 @@ try {
     $env:IMPORTED_CERT_THUMBPRINT = $cert.Thumbprint
     Write-Output "Certificate thumbprint: $($cert.Thumbprint)"
 
-    # Clean up temporary file
+} catch {
+    Write-Error "Failed to import code-signing certificate: $_"
+    exit 1
+} finally {
     if (Test-Path $pfxPath) {
         Remove-Item $pfxPath -Force
         Write-Host "Cleaned up temporary PFX file" -ForegroundColor Gray
     }
-
-} catch {
-    Write-Error "Failed to import code-signing certificate"
-    exit 1
 }
