@@ -1,0 +1,123 @@
+---
+name: Validate Syntax
+
+on:
+  push:
+    branches: [main, 'building-v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-yaml:
+    name: Validate YAML Syntax
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Validate action.yml files
+        run: |
+          echo "Validating action.yml files..."
+            find . -name "action.yml" -type f | while read -r file; do
+              echo "Checking: $file"
+              yamllint -c .yamllint.yml "$file" || exit 1
+            done
+
+      - name: Validate workflow YAML files
+        run: |
+          echo "Validating workflow YAML files..."
+            find .github/workflows -name "*.yml" -o -name "*.yaml" | while read -r file; do
+              echo "Checking: $file"
+              yamllint -c .yamllint.yml "$file" || exit 1
+            done
+
+  validate-powershell:
+    name: Validate PowerShell Syntax And Lint
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
+
+      - name: Validate PowerShell syntax
+        shell: pwsh
+        run: |
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Validate-PowerShellSyntax.ps1"
+          & $scriptPath -RunScriptAnalyzer -RequireScriptAnalyzer
+
+  validate-action-metadata:
+    name: Validate Action Metadata
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate action completeness
+        run: |
+          echo "Validating action directory structure..."
+
+          errors=()
+
+          for dir in */; do
+            # Check if directory follows action naming pattern
+            if [[ "$dir" == *-windows/ ]]; then
+              echo "Checking action: $dir"
+
+              # Check for required files
+              if [[ ! -f "${dir}action.yml" ]]; then
+                errors+=("Missing action.yml in $dir")
+              fi
+
+              # Check for PowerShell script (should match directory pattern)
+              action_name=$(basename "$dir" -windows)
+              expected_script="${dir}$(echo $action_name | sed 's/-/ /g' |\
+                sed 's/\b\w/\U&/g' | sed 's/ /-/g').ps1"
+
+              # Find any .ps1 file in the directory
+              ps1_files=($(find "$dir" -name "*.ps1"))
+              if [[ ${#ps1_files[@]} -eq 0 ]]; then
+                errors+=("Missing PowerShell script in $dir")
+              elif [[ ${#ps1_files[@]} -gt 1 ]]; then
+                errors+=("Multiple PowerShell scripts in $dir: ${ps1_files[*]}")
+              fi
+
+              # Validate action.yml structure if it exists
+              if [[ -f "${dir}action.yml" ]]; then
+                # Check for required fields
+                if ! grep -q "^name:" "${dir}action.yml"; then
+                  errors+=("Missing 'name' field in ${dir}action.yml")
+                fi
+                if ! grep -q "^description:" "${dir}action.yml"; then
+                  errors+=("Missing 'description' field in ${dir}action.yml")
+                fi
+                if ! grep -q "^runs:" "${dir}action.yml"; then
+                  errors+=("Missing 'runs' field in ${dir}action.yml")
+                fi
+              fi
+            fi
+          done
+
+          if [[ ${#errors[@]} -gt 0 ]]; then
+            echo "[ERROR] Action validation failed:"
+            printf '%s\n' "${errors[@]}"
+            exit 1
+          else
+            echo "[OK] All actions have valid structure"
+          fi

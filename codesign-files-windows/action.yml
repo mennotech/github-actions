@@ -1,0 +1,62 @@
+---
+name: 'Code-Sign PowerShell Files Windows'
+description: 'Sign PowerShell files (.ps1, .psm1, .psd1) with code-signing certificate'
+inputs:
+  path:
+    description: 'Root path to search for PowerShell files'
+    required: false
+    default: '.'
+  timestamp_server:
+    description: 'URL of the timestamp server for timestamping signatures'
+    required: false
+    default: 'http://timestamp.digicert.com'
+  recurse:
+    description: 'Search for files recursively in subdirectories'
+    required: false
+    default: 'false'
+  file_match:
+    description: 'Comma-separated list of file patterns to match for signing'
+    required: false
+    default: '*.ps1,*.psm1,*.psd1'
+  exclude_dirs:
+    description: 'Comma-separated list of directories to exclude from search'
+    required: false
+    default: '.git,.github'
+  cert_thumbprint:
+    description: >
+      Specific certificate thumbprint to use (defaults to
+      IMPORTED_CERT_THUMBPRINT environment variable)
+    required: false
+  cleanup_certificate:
+    description: >
+      Remove the certificate from the certificate store after signing
+      (recommended for security)
+    required: false
+    default: 'false'
+  test_only:
+    description: 'Perform a dry run to validate existing signatures without signing'
+    required: false
+    default: 'false'
+  fail_on_invalid:
+    description: 'When testing signatures, throw an error if any files have invalid signatures'
+    required: false
+    default: 'false'
+runs:
+  using: 'composite'
+  steps:
+    - shell: pwsh
+      env:
+        GITHUB_WORKSPACE: ${{ github.workspace }}
+        TIMESTAMP_SERVER: ${{ inputs.timestamp_server }}
+        FILE_MATCH: ${{ inputs.file_match }}
+        EXCLUDE_DIRS: ${{ inputs.exclude_dirs }}
+        IMPORTED_CERT_THUMBPRINT: ${{ inputs.cert_thumbprint || env.IMPORTED_CERT_THUMBPRINT }}
+      run: |
+        $scriptPath = "${{ github.action_path }}/CodeSign-Files.ps1"
+        $args = @{}
+        if ('${{ inputs.path }}' -ne '.') { $args['Path'] = '${{ inputs.path }}' }
+        if ('${{ inputs.recurse }}' -eq 'true') { $args['Recurse'] = $true }
+        if ('${{ inputs.cleanup_certificate }}' -eq 'true') { $args['CleanupCertificate'] = $true }
+        if ('${{ inputs.test_only }}' -eq 'true') { $args['TestOnly'] = $true }
+        if ('${{ inputs.fail_on_invalid }}' -eq 'true') { $args['FailOnInvalid'] = $true }
+        & $scriptPath @args

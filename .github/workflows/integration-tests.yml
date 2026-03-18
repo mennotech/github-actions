@@ -1,0 +1,126 @@
+---
+name: Integration Tests
+
+on:
+  push:
+    branches: [main, 'building-v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration-test:
+    name: Complete Integration Test
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup test environment
+        shell: pwsh
+        run: |
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Setup-IntegrationTestEnvironment.ps1"
+          & $scriptPath -Scenario Integration -ProjectPath "test-project"
+      - name: Create test code-signing certificate
+        shell: pwsh
+        id: create-cert
+        run: |
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Create-TestCertificate.ps1"
+          & $scriptPath -Mode ExportPfx `
+          -Subject "CN=IntegrationTestCert,O=Mennotech,C=US" `
+          -Password "IntegrationTest123!"
+
+      - name: Step 1 - Import Code-Signing Certificate
+        id: import-cert
+        uses: ./import-codesigning-cert-windows
+        with:
+          pfx_base64: ${{ steps.create-cert.outputs.pfx_base64 }}
+          pfx_password: ${{ steps.create-cert.outputs.pfx_password }}
+
+      - name: Verify certificate import
+        shell: pwsh
+        run: |
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-CertificateImport.ps1"
+          $thumbprint = "${{ steps.import-cert.outputs.certificate_thumbprint }}"
+          & $scriptPath -CertificateThumbprint $thumbprint -ExpectedEnvironmentVariableName "IMPORTED_CERT_THUMBPRINT"
+
+      - name: Step 2 - Sign PowerShell Files
+        uses: ./codesign-files-windows
+        with:
+          path: test-project
+          cert_thumbprint: ${{ steps.import-cert.outputs.certificate_thumbprint }}
+          recurse: true
+          file_match: "*.ps1,*.psm1,*.psd1"
+          exclude_dirs: ".git,.github"
+          cleanup_certificate: false  # Keep cert for verification
+
+      - name: Verify code signing results
+        shell: pwsh
+        run: |
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-PowerShellSignatures.ps1"
+          & $scriptPath -Path "test-project" `
+          -ExcludeDirs ".git", ".github" `
+          -ExpectedThumbprint "${{ steps.import-cert.outputs.certificate_thumbprint }}"
+
+      - name: Step 3 - Deploy Files
+        uses: ./deploy-files-windows
+        with:
+          source_path: test-project
+          destination_path: C:\temp\integration-test-deploy
+          exclude_dirs: ".git,.github"
+          exclude_files: "*.crt,Config.json"
+
+      - name: Verify deployment results
+        shell: pwsh
+        run: |
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-DeploymentResults.ps1"
+          & $scriptPath -DestinationPath "C:\temp\integration-test-deploy" `
+          -ExpectedFiles `
+          "main.ps1", "config.txt", "README.md", "scripts\helper.ps1", `
+          "scripts\TestUtils.psm1", "scripts\TestUtils.psd1" `
+          -ExcludedFiles ".git\config", ".github\test.yml", "test.crt", "Config.json" `
+          -VerifySignatures `
+          -ExpectedThumbprint "${{ steps.import-cert.outputs.certificate_thumbprint }}"
+
+      - name: Test deployed application
+        shell: pwsh
+        run: |
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Test-DeployedApplication.ps1"
+          & $scriptPath -DeployPath "C:\temp\integration-test-deploy"
+
+      - name: Final cleanup and certificate removal
+        if: always()
+        shell: pwsh
+        run: |
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Cleanup-IntegrationTest.ps1"
+          & $scriptPath -TestPath "test-project" -DeployPath "C:\temp\integration-test-deploy"
+
+  integration-test-summary:
+    name: Integration Test Summary
+    runs-on: ubuntu-latest
+    needs: integration-test
+    if: always()
+    steps:
+      - name: Integration test results
+        run: |
+          echo "## [TEST] Integration Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.integration-test.result }}" == "success" ]; then
+            echo "[OK] **Integration test passed successfully**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The complete workflow was validated:" >> $GITHUB_STEP_SUMMARY
+            echo "1. [KEY] Certificate import from PFX" >> $GITHUB_STEP_SUMMARY
+            echo "2. [SIGN]  PowerShell file code signing" >> $GITHUB_STEP_SUMMARY
+            echo "3. [DEPLOY] File deployment with exclusions" >> $GITHUB_STEP_SUMMARY
+            echo "4. [OK] Deployed application execution" >> $GITHUB_STEP_SUMMARY
+            echo "5. [CLEANUP] Automatic certificate cleanup" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "[ERROR] **Integration test failed**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Please check the integration test job for detailed error information." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi

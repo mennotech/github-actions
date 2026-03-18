@@ -1,0 +1,134 @@
+---
+name: Test Actions
+
+on:
+  push:
+    branches: [main, 'building-v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-import-cert-action:
+    name: Test Import Certificate Action
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create test certificate
+        id: create-import-cert
+        shell: pwsh
+        run: |
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Create-TestCertificate.ps1"
+          & $scriptPath -Mode ExportPfx
+
+      - name: Test Import Certificate Action
+        id: import-test
+        uses: ./import-codesigning-cert-windows
+        with:
+          pfx_base64: ${{ steps.create-import-cert.outputs.pfx_base64 }}
+          pfx_password: ${{ steps.create-import-cert.outputs.pfx_password }}
+
+      - name: Verify certificate import
+        shell: pwsh
+        run: |
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-CertificateImport.ps1"
+          $thumbprint = "${{ steps.import-test.outputs.certificate_thumbprint }}"
+          & $scriptPath -CertificateThumbprint $thumbprint -CleanupCertificate
+
+  test-codesign-action:
+    name: Test Code Sign Action
+    runs-on: windows-latest
+    needs: test-import-cert-action
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create test PowerShell files
+        shell: pwsh
+        run: |
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Setup-IntegrationTestEnvironment.ps1"
+          & $scriptPath -Scenario Signing -ProjectPath "test-scripts"
+
+      - name: Create test certificate and import
+        id: create-signing-cert
+        shell: pwsh
+        run: |
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Create-TestCertificate.ps1"
+          & $scriptPath -Mode ImportToStore -Subject "CN=TestCodeSignCert"
+
+      - name: Test Code Sign Action (Test Mode detects unsigned files)
+        id: codesign-test-mode-before-signing
+        continue-on-error: true
+        uses: ./codesign-files-windows
+        with:
+          path: test-scripts
+          test_only: true
+          recurse: true
+
+      - name: Verify test mode detects unsigned files
+        shell: pwsh
+        run: |
+          if ('${{ steps.codesign-test-mode-before-signing.outcome }}' -ne 'failure') {
+            throw 'Expected test_only mode to fail when unsigned files are present.'
+          }
+
+      - name: Test Code Sign Action (Signing)
+        uses: ./codesign-files-windows
+        with:
+          path: test-scripts
+          recurse: true
+          cleanup_certificate: true
+
+      - name: Test Code Sign Action (Test Mode after signing)
+        uses: ./codesign-files-windows
+        with:
+          path: test-scripts
+          recurse: true
+          test_only: true
+          fail_on_invalid: true
+
+      - name: Verify signatures
+        shell: pwsh
+        run: |
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-PowerShellSignatures.ps1"
+          $thumbprint = "${{ steps.create-signing-cert.outputs.certificate_thumbprint }}"
+          & $scriptPath -Path "test-scripts" `
+          -ExpectedThumbprint $thumbprint `
+          -ExpectCertificateCleanup
+
+  test-deploy-action:
+    name: Test Deploy Action
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create test source structure
+        shell: pwsh
+        run: |
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Setup-IntegrationTestEnvironment.ps1"
+          & $scriptPath -Scenario Deployment -ProjectPath "test-source"
+
+      - name: Test Deploy Action (Actual Deploy)
+        uses: ./deploy-files-windows
+        with:
+          source_path: test-source
+          destination_path: C:\temp\deploy-test
+
+      - name: Test Deploy Action (Test Mode)
+        uses: ./deploy-files-windows
+        with:
+          source_path: test-source
+          destination_path: C:\temp\deploy-test
+          test_only: true
+
+      - name: Verify deployment
+        shell: pwsh
+        run: |
+          $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-DeploymentResults.ps1"
+          & $scriptPath -DestinationPath "C:\temp\deploy-test" -CleanupDestination

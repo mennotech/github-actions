@@ -1,0 +1,23 @@
+---
+# YAML Lint Configuration for GitHub Actions Repository
+# Extends default rules but allows longer lines for better readability
+
+extends: default
+
+rules:
+  line-length:
+    max: 120  # Allow up to 100 characters per line (default is 80)
+
+  # Disable truthy rule for GitHub Actions workflows
+  truthy: disable
+
+  # Keep other useful rules enabled
+  document-start: enable
+  trailing-spaces: enable
+  empty-lines:
+    max-start: 0
+    max-end: 1
+  indentation:
+    spaces: 2
+  comments:
+    min-spaces-from-content: 1
