@@ -6,6 +6,8 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-03-19
+
 ### Security
 - `codesign-files-windows` and `deploy-files-windows` now enforce `.git` as a mandatory exclusion even if callers override `exclude_dirs`.
 
@@ -33,5 +35,6 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 ### Security
 - Added certificate cleanup support and explicit guidance to remove imported signing certificates after use.
 
+[1.0.2]: https://github.com/mennotech/github-actions/releases/tag/v1.0.2
 [1.0.1]: https://github.com/mennotech/github-actions/releases/tag/v1.0.1
 [1.0.0]: https://github.com/mennotech/github-actions/releases/tag/v1.0.0
