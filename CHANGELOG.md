@@ -22,14 +22,14 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 ### Notes
 - Callers that previously relied on `cleanup_certificate` defaulting to `false` must now pass `cleanup_certificate: false` explicitly if they need the certificate to persist after signing (e.g., for a subsequent verification step in the same job).
 
-## Release Notes Highlight
+## [1.1.0] - 2026-03-19
+
+### Release Notes Highlight
 
 - `v1.1.0` is a minor release because the default deployment and signing exclusion behavior changed.
 - `exclude_dirs` and `exclude_files` are now caller-controlled additive exclusions rather than broad built-in defaults.
 - Only `.git` remains enforced automatically, so consumers should review and explicitly provide exclusions such as `.github`, `logs`, `_work`, and any generated output directories they do not want deployed or signed.
 - Most consuming repositories should prefer `mennotech/github-workflows`, where Mennotech can provide sane defaults and safer orchestration guidance. Direct `mennotech/github-actions` usage should be treated as an advanced integration path.
-
-## [1.1.0] - 2026-03-19
 
 ### Added
 - `shared/GitHubActions.Common.psm1` to centralize common PowerShell helper logic used across reusable actions.
