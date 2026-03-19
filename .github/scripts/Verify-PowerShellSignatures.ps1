@@ -25,8 +25,15 @@
 .PARAMETER ExpectCertificateCleanup
     Validates that the expected certificate thumbprint is no longer present.
 
+.PARAMETER CleanupTrustedCertificate
+    Removes the expected certificate from the CurrentUser TrustedPublisher and
+    Root stores after verification. Intended for temporary test trust cleanup.
+
 .EXAMPLE
     Verify-PowerShellSignatures.ps1 -Path "test-scripts" -ExpectedThumbprint $env:TEST_CERT_THUMBPRINT
+
+.EXAMPLE
+    Verify-PowerShellSignatures.ps1 -Path "test-scripts" -ExpectedThumbprint $env:TEST_CERT_THUMBPRINT -CleanupTrustedCertificate
 #>
 
 [CmdletBinding()]
@@ -47,11 +54,47 @@ param(
     [string[]]$AcceptedStatuses = @('Valid', 'UnknownError'),
 
     [Parameter()]
-    [switch]$ExpectCertificateCleanup
+    [switch]$ExpectCertificateCleanup,
+
+    [Parameter()]
+    [switch]$CleanupTrustedCertificate
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+function Remove-CertificateFromCurrentUserStore {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('TrustedPublisher', 'Root')]
+        [string]$StoreName,
+
+        [Parameter(Mandatory)]
+        [string]$Thumbprint
+    )
+
+    $storeNameEnum = [System.Enum]::Parse([System.Security.Cryptography.X509Certificates.StoreName], $StoreName)
+    $store = [System.Security.Cryptography.X509Certificates.X509Store]::new(
+        $storeNameEnum,
+        [System.Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser
+    )
+
+    try {
+        $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+
+        $certificates = @($store.Certificates | Where-Object {
+            $_.Thumbprint -eq $Thumbprint
+        })
+
+        foreach ($certificate in $certificates) {
+            $store.Remove($certificate)
+            Write-Host "[OK] Removed trusted test certificate from Cert:\CurrentUser\$StoreName" -ForegroundColor Green
+        }
+    } finally {
+        $store.Close()
+    }
+}
 
 function Get-TargetFile {
     [CmdletBinding()]
@@ -125,6 +168,12 @@ try {
             throw "Certificate cleanup verification failed for thumbprint $ExpectedThumbprint"
         } else {
             Write-Host "[OK] Certificate was properly cleaned up" -ForegroundColor Green
+        }
+    }
+
+    if ($CleanupTrustedCertificate -and $ExpectedThumbprint) {
+        foreach ($storeName in @('TrustedPublisher', 'Root')) {
+            Remove-CertificateFromCurrentUserStore -StoreName $storeName -Thumbprint $ExpectedThumbprint
         }
     }
 } catch {
