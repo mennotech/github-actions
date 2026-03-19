@@ -4,6 +4,13 @@ All notable changes to this repository will be documented in this file.
 
 The format is based on Keep a Changelog and the project follows Semantic Versioning.
 
+## [Unreleased]
+
+## [1.0.1] - 2026-03-19
+
+### Fixed
+- `codesign-files-windows` now evaluates excluded directories against repository-relative paths instead of full runner workspace paths, preventing false exclusions on GitHub Actions runners.
+
 ## [1.0.0] - 2026-03-12
 
 ### Added
@@ -23,4 +30,5 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 ### Security
 - Added certificate cleanup support and explicit guidance to remove imported signing certificates after use.
 
+[1.0.1]: https://github.com/mennotech/github-actions/releases/tag/v1.0.1
 [1.0.0]: https://github.com/mennotech/github-actions/releases/tag/v1.0.0

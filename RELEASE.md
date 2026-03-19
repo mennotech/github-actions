@@ -30,25 +30,27 @@ Use `@v1.0.0` for pinning to an exact release. Use `@v1` when consumers should r
 1. Merge the release-ready branch into `main`.
 2. Confirm CI is green on `main`.
 3. Update `CHANGELOG.md` with the release date and summary.
-4. Create the immutable release tag:
+4. Create the immutable annotated release tag:
 
 ```powershell
 git checkout main
-git pull origin main
-git tag v1.0.0
+git pull --ff-only origin main
+git tag -a v1.0.0 -m "github-actions v1.0.0"
 git push origin v1.0.0
 ```
 
-5. Create or move the major tag:
+5. Create or move the major annotated tag:
 
 ```powershell
-git tag -f v1
+git tag -f -a v1 -m "github-actions v1"
 git push -f origin v1
 ```
 
 6. Create a GitHub release from tag `v1.0.0`.
 7. Paste the `CHANGELOG.md` entry into the GitHub release notes.
 8. Test one consuming workflow against `@v1.0.0` or `@v1`.
+
+For a patch release such as `v1.0.1`, repeat the same process with the new version tag and update the moving `v1` tag to the same release commit.
 
 ## GitHub Release Notes Template
 
