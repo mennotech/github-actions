@@ -45,19 +45,19 @@ param(
     [string]$DestinationPath = ($env:DESTINATION_PATH ? $env:DESTINATION_PATH : (throw "DestinationPath parameter is required. Provide DESTINATION_PATH environment variable or use -DestinationPath parameter.")),
 
     [Parameter()]
-    [string[]]$ExcludeDirs = ($env:EXCLUDE_DIRS ? $env:EXCLUDE_DIRS -split ',' : @(".git", ".github", "_work", "logs")),
+    [string[]]$ExcludeDirs = @(),
 
     [Parameter()]
-    [string[]]$ExcludeFiles = ($env:EXCLUDE_FILES ? $env:EXCLUDE_FILES -split ',' : @("*.crt", "Config.json")),
+    [string[]]$ExcludeFiles = @(),
 
     [Parameter()]
-    [string[]]$RobocopyOptions = ($env:ROBOCOPY_OPTIONS ? $env:ROBOCOPY_OPTIONS -split ',' : @(
+    [string[]]$RobocopyOptions = @(
         "/R:2",    # Retry 2 times on failed copies
         "/W:2",    # Wait 2 seconds between retries
         "/NDL",    # Don't log directory names
         "/NFL",    # Don't log file names (reduces noise)
         "/NP"      # Don't show progress percentage
-    )),
+    ),
 
     [Parameter()]
     [switch]$TestOnly
@@ -66,43 +66,18 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function Get-EffectiveExcludeDirs {
-    [CmdletBinding()]
-    [OutputType([string[]])]
-    param(
-        [Parameter()]
-        [string[]]$ExcludeDirs = @(),
+Import-Module (Join-Path $PSScriptRoot '..\shared\GitHubActions.Common.psm1') -Force
 
-        [Parameter()]
-        [string[]]$MandatoryExcludeDirs = @('.git')
-    )
-
-    $effectiveExcludeDirs = [System.Collections.Generic.List[string]]::new()
-
-    foreach ($excludeDir in @($MandatoryExcludeDirs) + @($ExcludeDirs)) {
-        $normalizedExcludeDir = $excludeDir.Trim()
-        if ([string]::IsNullOrWhiteSpace($normalizedExcludeDir)) {
-            continue
-        }
-
-        $alreadyIncluded = $effectiveExcludeDirs | Where-Object {
-            $_.Equals($normalizedExcludeDir, [System.StringComparison]::OrdinalIgnoreCase)
-        }
-
-        if (-not $alreadyIncluded) {
-            $effectiveExcludeDirs.Add($normalizedExcludeDir)
-        }
-    }
-
-    return [string[]]$effectiveExcludeDirs
-}
+$ExcludeDirs = Get-StringArrayParameterFromEnvironment -BoundParameters $PSBoundParameters -ParameterName 'ExcludeDirs' -EnvironmentVariableName 'EXCLUDE_DIRS' -CurrentValue $ExcludeDirs
+$ExcludeFiles = Get-StringArrayParameterFromEnvironment -BoundParameters $PSBoundParameters -ParameterName 'ExcludeFiles' -EnvironmentVariableName 'EXCLUDE_FILES' -CurrentValue $ExcludeFiles
+$RobocopyOptions = Get-StringArrayParameterFromEnvironment -BoundParameters $PSBoundParameters -ParameterName 'RobocopyOptions' -EnvironmentVariableName 'ROBOCOPY_OPTIONS' -CurrentValue $RobocopyOptions
 
 try {
     Write-Host "Starting deployment process..." -ForegroundColor Cyan
     Write-Host "  Source: $SourcePath" -ForegroundColor Gray
     Write-Host "  Destination: $DestinationPath" -ForegroundColor Gray
 
-    $effectiveExcludeDirs = Get-EffectiveExcludeDirs -ExcludeDirs $ExcludeDirs
+    [string[]]$effectiveExcludeDirs = Get-EffectiveExcludeDirList -ExcludeDirs $ExcludeDirs
 
     # Resolve source path
     $resolvedSource = Resolve-Path $SourcePath -ErrorAction Stop

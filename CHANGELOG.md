@@ -6,6 +6,40 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 
 ## [Unreleased]
 
+## Release Notes Highlight
+
+- `v1.1.0` is a minor release because the default deployment and signing exclusion behavior changed.
+- `exclude_dirs` and `exclude_files` are now caller-controlled additive exclusions rather than broad built-in defaults.
+- Only `.git` remains enforced automatically, so consumers should review and explicitly provide exclusions such as `.github`, `logs`, `_work`, and any generated output directories they do not want deployed or signed.
+- Most consuming repositories should prefer `mennotech/github-workflows`, where Mennotech can provide sane defaults and safer orchestration guidance. Direct `mennotech/github-actions` usage should be treated as an advanced integration path.
+
+## [1.1.0] - 2026-03-19
+
+### Added
+- `shared/GitHubActions.Common.psm1` to centralize common PowerShell helper logic used across reusable actions.
+- Repository line-ending rules for YAML files so local `yamllint` runs and CI expect the same LF formatting.
+
+### Changed
+- `codesign-files-windows` and `deploy-files-windows` now treat `exclude_dirs` and `exclude_files` inputs as additional caller-supplied exclusions instead of shipping broad default exclusion lists.
+- Array-valued action parameters now resolve environment variables through shared helper logic instead of maintaining duplicated parsing in each script.
+- User-facing documentation now recommends `mennotech/github-workflows` as the default consumer path for most repositories, with direct `mennotech/github-actions` usage positioned as an advanced option.
+- Self-signed CI test certificates remain untrusted by default; test workflows must opt into the narrow untrusted-root verification override explicitly instead of mutating trust stores.
+
+### Fixed
+- Local PowerShell validation now ignores `.venv` content and runs `PSScriptAnalyzer` reliably per repository file.
+- YAML files were normalized to LF line endings so repository `yamllint` runs pass consistently.
+
+### Documentation
+- Updated README, example usage, and release guidance to highlight the `v1.1.0` exclusion behavior change and explain when consumers should prefer `mennotech/github-workflows`.
+- Clarified that direct action consumers must pass repository-specific exclusions explicitly when they do not want CI, log, runner, or generated output directories processed.
+- Documented that `allow_untrusted_root_in_test` is test-only, requires the expected signer thumbprint, and does not relax production certificate verification defaults.
+
+### Notes
+- This release changes the effective default exclusion set for consumers who relied on built-in defaults.
+- Review consuming workflows and set explicit exclusions before upgrading if your repositories contain CI, log, runner, or generated artifact directories.
+- Prefer upgrading through `mennotech/github-workflows` when possible so repository-specific defaults and guardrails can be managed at the workflow layer.
+- Compared to `v1.0.2`, certificate handling guidance is now stricter: self-signed test certificates are handled through explicit test-only verification overrides rather than any broad acceptance of `UnknownError` or trust-store modification.
+
 ## [1.0.2] - 2026-03-19
 
 ### Security
@@ -35,6 +69,7 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 ### Security
 - Added certificate cleanup support and explicit guidance to remove imported signing certificates after use.
 
+[1.1.0]: https://github.com/mennotech/github-actions/releases/tag/v1.1.0
 [1.0.2]: https://github.com/mennotech/github-actions/releases/tag/v1.0.2
 [1.0.1]: https://github.com/mennotech/github-actions/releases/tag/v1.0.1
 [1.0.0]: https://github.com/mennotech/github-actions/releases/tag/v1.0.0

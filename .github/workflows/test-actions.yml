@@ -91,6 +91,8 @@ jobs:
           recurse: true
           test_only: true
           fail_on_invalid: true
+          cert_thumbprint: ${{ steps.create-signing-cert.outputs.certificate_thumbprint }}
+          allow_untrusted_root_in_test: true
 
       - name: Verify signatures
         shell: pwsh
@@ -99,6 +101,7 @@ jobs:
           $thumbprint = "${{ steps.create-signing-cert.outputs.certificate_thumbprint }}"
           & $scriptPath -Path "test-scripts" `
           -ExpectedThumbprint $thumbprint `
+          -AllowUntrustedRoot `
           -ExpectCertificateCleanup
 
   test-deploy-action:
@@ -119,12 +122,16 @@ jobs:
         with:
           source_path: test-source
           destination_path: C:\temp\deploy-test
+          exclude_dirs: ".git,.github,logs"
+          exclude_files: "*.crt,Config.json"
 
       - name: Test Deploy Action (Test Mode)
         uses: ./deploy-files-windows
         with:
           source_path: test-source
           destination_path: C:\temp\deploy-test
+          exclude_dirs: ".git,.github,logs"
+          exclude_files: "*.crt,Config.json"
           test_only: true
 
       - name: Verify deployment

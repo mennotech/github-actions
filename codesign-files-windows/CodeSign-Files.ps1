@@ -32,11 +32,19 @@
 .PARAMETER FailOnInvalid
     When testing signatures, throw an error if any files have invalid signatures.
 
+.PARAMETER AllowUntrustedRootInTest
+    In test-only mode, accept signatures with status UnknownError only when the
+    signer thumbprint matches the expected certificate and the status message
+    indicates an untrusted root.
+
 .EXAMPLE
     Sign-PowerShellFiles.ps1 -CleanupCertificate
 
 .EXAMPLE
     Sign-PowerShellFiles.ps1 -Path "C:\Scripts" -CertThumbprint "ABC123..." -CleanupCertificate
+
+.EXAMPLE
+    Sign-PowerShellFiles.ps1 -TestOnly -FailOnInvalid -CertThumbprint "ABC123..." -AllowUntrustedRootInTest
 #>
 
 [CmdletBinding()]
@@ -51,10 +59,10 @@ param(
     [switch]$Recurse,
 
     [Parameter()]
-    [array]$FileMatch = $env:FILE_MATCH ? $env:FILE_MATCH -split ',' : @("*.ps1", "*.psm1", "*.psd1"),
+    [string[]]$FileMatch = @("*.ps1", "*.psm1", "*.psd1"),
 
     [Parameter()]
-    [string[]]$ExcludeDirs = $env:EXCLUDE_DIRS ? $env:EXCLUDE_DIRS -split ',' : @(".git", ".github"),
+    [string[]]$ExcludeDirs = @(),
 
     [Parameter()]
     [string]$CertThumbprint = $env:IMPORTED_CERT_THUMBPRINT,
@@ -66,45 +74,22 @@ param(
     [switch]$TestOnly,
 
     [Parameter()]
-    [switch]$FailOnInvalid
+    [switch]$FailOnInvalid,
+
+    [Parameter()]
+    [switch]$AllowUntrustedRootInTest
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+Import-Module (Join-Path $PSScriptRoot '..\shared\GitHubActions.Common.psm1') -Force
+
+$FileMatch = Get-StringArrayParameterFromEnvironment -BoundParameters $PSBoundParameters -ParameterName 'FileMatch' -EnvironmentVariableName 'FILE_MATCH' -CurrentValue $FileMatch
+$ExcludeDirs = Get-StringArrayParameterFromEnvironment -BoundParameters $PSBoundParameters -ParameterName 'ExcludeDirs' -EnvironmentVariableName 'EXCLUDE_DIRS' -CurrentValue $ExcludeDirs
+
 
 #region Helper Functions
-
-function Get-EffectiveExcludeDirs {
-    [CmdletBinding()]
-    [OutputType([string[]])]
-    param(
-        [Parameter()]
-        [string[]]$ExcludeDirs = @(),
-
-        [Parameter()]
-        [string[]]$MandatoryExcludeDirs = @('.git')
-    )
-
-    $effectiveExcludeDirs = [System.Collections.Generic.List[string]]::new()
-
-    foreach ($excludeDir in @($MandatoryExcludeDirs) + @($ExcludeDirs)) {
-        $normalizedExcludeDir = $excludeDir.Trim()
-        if ([string]::IsNullOrWhiteSpace($normalizedExcludeDir)) {
-            continue
-        }
-
-        $alreadyIncluded = $effectiveExcludeDirs | Where-Object {
-            $_.Equals($normalizedExcludeDir, [System.StringComparison]::OrdinalIgnoreCase)
-        }
-
-        if (-not $alreadyIncluded) {
-            $effectiveExcludeDirs.Add($normalizedExcludeDir)
-        }
-    }
-
-    return [string[]]$effectiveExcludeDirs
-}
 
 function Get-CodeSigningCertificate {
     [CmdletBinding()]
@@ -190,7 +175,7 @@ function Find-PowerShellFile {
 
     $resolvedPath = (Resolve-Path $Path).Path
 
-    $effectiveExcludeDirs = Get-EffectiveExcludeDirs -ExcludeDirs $ExcludeDirs
+    [string[]]$effectiveExcludeDirs = Get-EffectiveExcludeDirList -ExcludeDirs $ExcludeDirs
 
     Write-Host "Searching for PowerShell files in: $resolvedPath" -ForegroundColor Gray
     if ($effectiveExcludeDirs.Count -gt 0) {
@@ -217,7 +202,7 @@ function Find-PowerShellFile {
     }
 
     Write-Host "Found $($files.Count) PowerShell file(s)" -ForegroundColor Gray
-    return $files
+    return [System.IO.FileInfo[]]$files
 }
 
 function Test-PowerShellFileSignature {
@@ -228,22 +213,45 @@ function Test-PowerShellFileSignature {
         [System.IO.FileInfo[]]$Files,
 
         [Parameter()]
-        [switch]$FailOnInvalid
+        [switch]$FailOnInvalid,
+
+        [Parameter()]
+        [string]$ExpectedSignerThumbprint,
+
+        [Parameter()]
+        [switch]$AllowUntrustedRootInTest
     )
 
     $validSignatures = @()
     $invalidSignatures = @()
+    $untrustedRootMessagePattern = 'terminated in a root certificate which is not trusted by the trust provider'
 
     foreach ($file in $Files) {
         try {
             $sig = Get-AuthenticodeSignature -FilePath $file.FullName
 
-            if ($sig.Status -eq 'Valid') {
+            $isValidSignature = $sig.Status -eq 'Valid'
+
+            if (
+                -not $isValidSignature -and
+                $AllowUntrustedRootInTest -and
+                $sig.Status -eq 'UnknownError' -and
+                $sig.StatusMessage -match $untrustedRootMessagePattern -and
+                $sig.SignerCertificate -and
+                $ExpectedSignerThumbprint -and
+                $sig.SignerCertificate.Thumbprint -eq $ExpectedSignerThumbprint
+            ) {
+                $isValidSignature = $true
+            }
+
+            if ($isValidSignature) {
                 Write-Host "$($file.Name)" -ForegroundColor Green
                 $validSignatures += [PSCustomObject]@{
                     File = $file.FullName
                     Status = $sig.Status
+                    Message = $sig.StatusMessage
                     SignerCertificate = $sig.SignerCertificate.Subject
+                    SignerThumbprint = $sig.SignerCertificate.Thumbprint
                     TimeStamperCertificate = if ($sig.TimeStamperCertificate) { $sig.TimeStamperCertificate.Subject } else { "None" }
                 }
             } else {
@@ -311,7 +319,7 @@ function Invoke-PowerShellFileSigning {
         [string]$TimestampServer = "http://timestamp.digicert.com"
     )
 
-    $acceptableStatuses = @('Valid', 'UnknownError')
+    $untrustedRootMessagePattern = 'terminated in a root certificate which is not trusted by the trust provider'
 
     $signedCount = 0
     $failedCount = 0
@@ -322,7 +330,19 @@ function Invoke-PowerShellFileSigning {
 
             $sig = Set-AuthenticodeSignature -FilePath $file.FullName -Certificate $Certificate -TimestampServer $TimestampServer
 
-            if ($sig.Status -in $acceptableStatuses -and $sig.SignerCertificate -and $sig.SignerCertificate.Thumbprint -eq $Certificate.Thumbprint) {
+            $isAcceptedSignature = $sig.Status -eq 'Valid'
+
+            if (
+                -not $isAcceptedSignature -and
+                $sig.Status -eq 'UnknownError' -and
+                $sig.StatusMessage -match $untrustedRootMessagePattern -and
+                $sig.SignerCertificate -and
+                $sig.SignerCertificate.Thumbprint -eq $Certificate.Thumbprint
+            ) {
+                $isAcceptedSignature = $true
+            }
+
+            if ($isAcceptedSignature) {
                 Write-Host "  Success" -ForegroundColor Green
                 $signedCount++
             } else {
@@ -361,10 +381,18 @@ $exitCode = 0
 try {
     Write-Host "Starting PowerShell file signing process..." -ForegroundColor Cyan
 
+    if ($AllowUntrustedRootInTest -and -not $TestOnly) {
+        throw "AllowUntrustedRootInTest can only be used with TestOnly"
+    }
+
+    if ($AllowUntrustedRootInTest -and -not $CertThumbprint) {
+        throw "AllowUntrustedRootInTest requires CertThumbprint so the signer thumbprint can be verified"
+    }
+
     $files = Find-PowerShellFile -Path $Path -Recurse:$Recurse -FileMatch $FileMatch -ExcludeDirs $ExcludeDirs
 
     if ($TestOnly) {
-        $signatureResults = Test-PowerShellFileSignature -Files $files -FailOnInvalid:$FailOnInvalid
+        $signatureResults = Test-PowerShellFileSignature -Files $files -FailOnInvalid:$FailOnInvalid -ExpectedSignerThumbprint $CertThumbprint -AllowUntrustedRootInTest:$AllowUntrustedRootInTest
         if ($signatureResults.InvalidSignatures.Count -gt 0) {
             Write-Host "Test mode detected unsigned or invalid files" -ForegroundColor Yellow
             $exitCode = 1
@@ -377,8 +405,8 @@ try {
     }
 
 } catch {
-    Write-Error "PowerShell file signing failed: $_"
     $exitCode = 1
+    Write-Host "PowerShell file signing failed: $_" -ForegroundColor Red
 } finally {
     if ($CleanupCertificate -and $cert) {
         try {

@@ -22,11 +22,19 @@
 .PARAMETER AcceptedStatuses
     Signature statuses that are accepted as passing.
 
+.PARAMETER AllowUntrustedRoot
+    Accept signatures with status UnknownError only when the signer thumbprint
+    matches the expected certificate and the status message indicates an
+    untrusted root.
+
 .PARAMETER ExpectCertificateCleanup
     Validates that the expected certificate thumbprint is no longer present.
 
 .EXAMPLE
     Verify-PowerShellSignatures.ps1 -Path "test-scripts" -ExpectedThumbprint $env:TEST_CERT_THUMBPRINT
+
+.EXAMPLE
+    Verify-PowerShellSignatures.ps1 -Path "test-scripts" -ExpectedThumbprint $env:TEST_CERT_THUMBPRINT -AllowUntrustedRoot
 #>
 
 [CmdletBinding()]
@@ -44,7 +52,10 @@ param(
     [string]$ExpectedThumbprint = $env:TEST_CERT_THUMBPRINT,
 
     [Parameter()]
-    [string[]]$AcceptedStatuses = @('Valid', 'UnknownError'),
+    [string[]]$AcceptedStatuses = @('Valid'),
+
+    [Parameter()]
+    [switch]$AllowUntrustedRoot,
 
     [Parameter()]
     [switch]$ExpectCertificateCleanup
@@ -90,12 +101,17 @@ function Get-TargetFile {
 try {
     Write-Host "Verifying PowerShell file signatures..." -ForegroundColor Yellow
 
+    if ($AllowUntrustedRoot -and -not $ExpectedThumbprint) {
+        throw 'AllowUntrustedRoot requires ExpectedThumbprint so the signer thumbprint can be verified'
+    }
+
     $files = Get-TargetFile -SearchPath $Path -Patterns $IncludePatterns -ExcludedDirectories $ExcludeDirs
     if ($files.Count -eq 0) {
         throw "No matching PowerShell files found in $Path"
     }
 
     $signedCount = 0
+    $untrustedRootMessagePattern = 'terminated in a root certificate which is not trusted by the trust provider'
 
     foreach ($file in $files) {
         $sig = Get-AuthenticodeSignature -FilePath $file.FullName
@@ -104,8 +120,21 @@ try {
         Write-Host "  Status: $($sig.Status)" -ForegroundColor Gray
         Write-Host "  Signer Thumbprint: $signerThumbprint" -ForegroundColor Gray
 
+        $isAcceptedStatus = $sig.Status -in $AcceptedStatuses
         if (
-            $sig.Status -in $AcceptedStatuses -and
+            -not $isAcceptedStatus -and
+            $AllowUntrustedRoot -and
+            $sig.Status -eq 'UnknownError' -and
+            $sig.StatusMessage -match $untrustedRootMessagePattern -and
+            $sig.SignerCertificate -and
+            $ExpectedThumbprint -and
+            $sig.SignerCertificate.Thumbprint -eq $ExpectedThumbprint
+        ) {
+            $isAcceptedStatus = $true
+        }
+
+        if (
+            $isAcceptedStatus -and
             $sig.SignerCertificate -and
             (-not $ExpectedThumbprint -or $sig.SignerCertificate.Thumbprint -eq $ExpectedThumbprint)
         ) {

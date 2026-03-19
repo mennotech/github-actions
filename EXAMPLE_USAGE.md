@@ -2,6 +2,12 @@
 
 This document demonstrates the **correct separation of responsibilities** when using Mennotech’s GitHub Actions and reusable workflows.
 
+> **Recommended for most consumers**
+>
+> Use `mennotech/github-workflows` as the default integration point.
+> That layer is where Mennotech intends to provide sane defaults, safer orchestration, and upgrade guidance for application repositories.
+> Use `mennotech/github-actions` directly only when you need low-level control and are comfortable managing exclusions, sequencing, and security behavior yourself.
+
 > **Key principle**
 >
 > - **Application repositories own configuration** (paths, exclusions, environment‑specific values)
@@ -18,6 +24,12 @@ This document demonstrates the **correct separation of responsibilities** when u
 | Reusable Workflows | `mennotech/github-workflows` | Defines **how** deployment happens |
 | Composite Actions | `mennotech/github-actions` | Implements **low‑level mechanics** |
 
+### Guidance
+
+- Most application repositories should call `mennotech/github-workflows`
+- Direct `mennotech/github-actions` usage is an advanced path for custom workflow authors
+- If you consume actions directly, you are responsible for passing explicit exclusions and preserving safe defaults in your own workflow
+
 ---
 
 ## Example: Application Repository (✅ owns parameters)
@@ -29,6 +41,12 @@ The application repository:
 - Chooses exclusions
 - Chooses triggers
 - Does **not** implement signing or deployment logic
+- Should normally consume `mennotech/github-workflows`, not raw `mennotech/github-actions`
+
+> **Important upgrade note**
+>
+> `deploy-files-windows` and `codesign-files-windows` no longer provide broad default exclusion lists.
+> Only `.git` is excluded automatically, so application repositories should pass exclusions such as `.github`, `logs`, `_work`, and any generated output folders explicitly when needed.
 
 ### `.github/workflows/deploy.yml` (Application Repository)
 
@@ -56,4 +74,22 @@ jobs:
 
       # Optional overrides
       timestamp_server: "http://timestamp.digicert.com"
-``
+```
+
+## Advanced: Direct `github-actions` Usage
+
+Direct action consumption is supported, but it is intended for maintainers or advanced users who need custom orchestration.
+
+If you use actions from this repository directly, you should assume responsibility for:
+
+- ordering the signing and deployment steps correctly
+- passing explicit exclusions for repository-specific directories and generated output
+- enabling certificate cleanup and other security-sensitive options explicitly
+- reviewing release notes for behavior changes that reusable workflows may otherwise absorb for you
+
+### Certificate Handling Guidance
+
+- Use `import-codesigning-cert-windows` to load a PFX into `CurrentUser\My`, and prefer `cleanup_certificate: true` on the signing step so imported certificates do not persist on self-hosted runners.
+- Production workflows should use trusted signing certificates and keep signature verification strict.
+- Test workflows that use self-signed certificates may see `Get-AuthenticodeSignature` return `UnknownError` because the root is not trusted. In that narrow case, `codesign-files-windows` supports `allow_untrusted_root_in_test: true`, but only for test verification and only when you also pass the expected `cert_thumbprint`.
+- Do not treat `allow_untrusted_root_in_test` as a general-purpose bypass. It is intended only for self-signed CI test certificates and only for the specific untrusted-root case.

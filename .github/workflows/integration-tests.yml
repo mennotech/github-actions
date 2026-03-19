@@ -63,7 +63,8 @@ jobs:
           $scriptPath = "${{ github.workspace }}\.github\scripts\Verify-PowerShellSignatures.ps1"
           & $scriptPath -Path "test-project" `
           -ExcludeDirs ".git", ".github" `
-          -ExpectedThumbprint "${{ steps.import-cert.outputs.certificate_thumbprint }}"
+          -ExpectedThumbprint "${{ steps.import-cert.outputs.certificate_thumbprint }}" `
+          -AllowUntrustedRoot
 
       - name: Step 3 - Deploy Files
         uses: ./deploy-files-windows
@@ -83,7 +84,8 @@ jobs:
           "scripts\TestUtils.psm1", "scripts\TestUtils.psd1" `
           -ExcludedFiles ".git\config", ".github\test.yml", "test.crt", "Config.json" `
           -VerifySignatures `
-          -ExpectedThumbprint "${{ steps.import-cert.outputs.certificate_thumbprint }}"
+          -ExpectedThumbprint "${{ steps.import-cert.outputs.certificate_thumbprint }}" `
+          -AllowUntrustedRoot
 
       - name: Test deployed application
         shell: pwsh

@@ -19,9 +19,9 @@ inputs:
     required: false
     default: '*.ps1,*.psm1,*.psd1'
   exclude_dirs:
-    description: 'Comma-separated list of directories to exclude from search (.git is always excluded)'
+    description: 'Comma-separated list of additional directories to exclude from search (.git is always excluded)'
     required: false
-    default: '.git,.github'
+    default: ''
   cert_thumbprint:
     description: >
       Specific certificate thumbprint to use (defaults to
@@ -39,6 +39,14 @@ inputs:
     default: 'false'
   fail_on_invalid:
     description: 'When testing signatures, throw an error if any files have invalid signatures'
+    required: false
+    default: 'false'
+  allow_untrusted_root_in_test:
+    description: >
+      Test-only override: accept UnknownError only when the signer thumbprint
+      matches the expected certificate and the status message indicates an
+      untrusted root; requires cert_thumbprint and is not intended for
+      production workflows
     required: false
     default: 'false'
 runs:
@@ -59,4 +67,5 @@ runs:
         if ('${{ inputs.cleanup_certificate }}' -eq 'true') { $args['CleanupCertificate'] = $true }
         if ('${{ inputs.test_only }}' -eq 'true') { $args['TestOnly'] = $true }
         if ('${{ inputs.fail_on_invalid }}' -eq 'true') { $args['FailOnInvalid'] = $true }
+        if ('${{ inputs.allow_untrusted_root_in_test }}' -eq 'true') { $args['AllowUntrustedRootInTest'] = $true }
         & $scriptPath @args

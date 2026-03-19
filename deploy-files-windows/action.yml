@@ -11,15 +11,16 @@ inputs:
     required: true
   exclude_dirs:
     description: >
-      Comma-separated list of directories to exclude from deployment
-      (.git is always excluded)
+      Comma-separated list of additional directories to exclude from deployment
+      (.git is always excluded; no other default directories are excluded)
     required: false
-    default: '.git,.github,_work,logs'
+    default: ''
   exclude_files:
     description: >
-      Comma-separated list of file patterns to exclude from deployment
+      Comma-separated list of additional file patterns to exclude from deployment
+      (no default file exclusions are applied)
     required: false
-    default: '*.crt,Config.json'
+    default: ''
   robocopy_options:
     description: 'Comma-separated list of additional robocopy options'
     required: false
