@@ -22,6 +22,11 @@
 .PARAMETER ExpectedThumbprint
     Expected thumbprint for deployed PowerShell file signatures.
 
+.PARAMETER AllowUntrustedRoot
+    Accept signatures with status UnknownError only when the signer thumbprint
+    matches the expected certificate and the status message indicates an
+    untrusted root.
+
 .PARAMETER CleanupDestination
     Removes the destination directory after verification.
 
@@ -54,6 +59,9 @@ param(
 
     [Parameter()]
     [string]$ExpectedThumbprint,
+
+    [Parameter()]
+    [switch]$AllowUntrustedRoot,
 
     [Parameter()]
     [string[]]$SignaturePatterns = @('*.ps1', '*.psm1', '*.psd1'),
@@ -101,6 +109,10 @@ function Get-DeploySignatureFile {
 try {
     Write-Host "Verifying deployment results..." -ForegroundColor Yellow
 
+    if ($AllowUntrustedRoot -and -not $ExpectedThumbprint) {
+        throw 'AllowUntrustedRoot requires ExpectedThumbprint so the signer thumbprint can be verified'
+    }
+
     $deployedCount = 0
     foreach ($expectedFile in $ExpectedFiles) {
         $fullPath = Join-Path $DestinationPath $expectedFile
@@ -137,10 +149,26 @@ try {
             throw 'No deployed PowerShell files found for signature verification'
         }
 
+        $untrustedRootMessagePattern = 'terminated in a root certificate which is not trusted by the trust provider'
+
         foreach ($file in $signatureFiles) {
             $signature = Get-AuthenticodeSignature -FilePath $file.FullName
+
+            $isAcceptedStatus = $signature.Status -eq 'Valid'
             if (
-                $signature.Status -notin @('Valid', 'UnknownError') -or
+                -not $isAcceptedStatus -and
+                $AllowUntrustedRoot -and
+                $signature.Status -eq 'UnknownError' -and
+                $signature.StatusMessage -match $untrustedRootMessagePattern -and
+                $signature.SignerCertificate -and
+                $ExpectedThumbprint -and
+                $signature.SignerCertificate.Thumbprint -eq $ExpectedThumbprint
+            ) {
+                $isAcceptedStatus = $true
+            }
+
+            if (
+                -not $isAcceptedStatus -or
                 -not $signature.SignerCertificate -or
                 ($ExpectedThumbprint -and $signature.SignerCertificate.Thumbprint -ne $ExpectedThumbprint)
             ) {
