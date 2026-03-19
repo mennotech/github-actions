@@ -51,7 +51,7 @@ param(
     [switch]$Recurse,
 
     [Parameter()]
-    [array]$FileMatch = $env:FILE_MATCH ? $env:FILE_MATCH -split ',' : @("*.ps1", "*.psm1", "*.psd1"),
+    [string[]]$FileMatch = @("*.ps1", "*.psm1", "*.psd1"),
 
     [Parameter()]
     [string[]]$ExcludeDirs = @(),
@@ -74,6 +74,7 @@ $ErrorActionPreference = 'Stop'
 
 Import-Module (Join-Path $PSScriptRoot '..\shared\GitHubActions.Common.psm1') -Force
 
+$FileMatch = Get-StringArrayParameterFromEnvironment -BoundParameters $PSBoundParameters -ParameterName 'FileMatch' -EnvironmentVariableName 'FILE_MATCH' -CurrentValue $FileMatch
 $ExcludeDirs = Get-StringArrayParameterFromEnvironment -BoundParameters $PSBoundParameters -ParameterName 'ExcludeDirs' -EnvironmentVariableName 'EXCLUDE_DIRS' -CurrentValue $ExcludeDirs
 
 

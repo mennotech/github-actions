@@ -51,13 +51,13 @@ param(
     [string[]]$ExcludeFiles = @(),
 
     [Parameter()]
-    [string[]]$RobocopyOptions = ($env:ROBOCOPY_OPTIONS ? $env:ROBOCOPY_OPTIONS -split ',' : @(
+    [string[]]$RobocopyOptions = @(
         "/R:2",    # Retry 2 times on failed copies
         "/W:2",    # Wait 2 seconds between retries
         "/NDL",    # Don't log directory names
         "/NFL",    # Don't log file names (reduces noise)
         "/NP"      # Don't show progress percentage
-    )),
+    ),
 
     [Parameter()]
     [switch]$TestOnly
@@ -70,6 +70,7 @@ Import-Module (Join-Path $PSScriptRoot '..\shared\GitHubActions.Common.psm1') -F
 
 $ExcludeDirs = Get-StringArrayParameterFromEnvironment -BoundParameters $PSBoundParameters -ParameterName 'ExcludeDirs' -EnvironmentVariableName 'EXCLUDE_DIRS' -CurrentValue $ExcludeDirs
 $ExcludeFiles = Get-StringArrayParameterFromEnvironment -BoundParameters $PSBoundParameters -ParameterName 'ExcludeFiles' -EnvironmentVariableName 'EXCLUDE_FILES' -CurrentValue $ExcludeFiles
+$RobocopyOptions = Get-StringArrayParameterFromEnvironment -BoundParameters $PSBoundParameters -ParameterName 'RobocopyOptions' -EnvironmentVariableName 'ROBOCOPY_OPTIONS' -CurrentValue $RobocopyOptions
 
 try {
     Write-Host "Starting deployment process..." -ForegroundColor Cyan
