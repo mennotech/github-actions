@@ -52,8 +52,6 @@ try {
     Write-Host "Importing code-signing certificate..."
 
     # Create temporary file for the PFX
-    Write-Host "Writing PFX to temporary file: $pfxPath"
-
     try {
         [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($PfxBase64))
     } catch {

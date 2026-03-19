@@ -32,7 +32,7 @@ inputs:
       Remove the certificate from the certificate store after signing
       (recommended for security)
     required: false
-    default: 'false'
+    default: 'true'
   test_only:
     description: 'Perform a dry run to validate existing signatures without signing'
     required: false

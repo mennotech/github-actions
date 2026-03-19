@@ -100,7 +100,10 @@ try {
     try {
         $testFile = Join-Path $DestinationPath "permission_test_$(Get-Random).tmp"
         "test" | Out-File -FilePath $testFile -ErrorAction Stop
-        Remove-Item $testFile -ErrorAction SilentlyContinue
+        Remove-Item $testFile -Force -ErrorAction SilentlyContinue
+        if (Test-Path $testFile) {
+            Write-Warning "Could not remove permission test file: $testFile"
+        }
         Write-Host "Write permissions verified" -ForegroundColor Green
     } catch {
         throw "No write permissions to destination directory '$DestinationPath': $_"
