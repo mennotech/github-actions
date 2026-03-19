@@ -23,6 +23,7 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 - `codesign-files-windows` and `deploy-files-windows` now treat `exclude_dirs` and `exclude_files` inputs as additional caller-supplied exclusions instead of shipping broad default exclusion lists.
 - Array-valued action parameters now resolve environment variables through shared helper logic instead of maintaining duplicated parsing in each script.
 - User-facing documentation now recommends `mennotech/github-workflows` as the default consumer path for most repositories, with direct `mennotech/github-actions` usage positioned as an advanced option.
+- Self-signed CI test certificates remain untrusted by default; test workflows must opt into the narrow untrusted-root verification override explicitly instead of mutating trust stores.
 
 ### Fixed
 - Local PowerShell validation now ignores `.venv` content and runs `PSScriptAnalyzer` reliably per repository file.
@@ -31,11 +32,13 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 ### Documentation
 - Updated README, example usage, and release guidance to highlight the `v1.1.0` exclusion behavior change and explain when consumers should prefer `mennotech/github-workflows`.
 - Clarified that direct action consumers must pass repository-specific exclusions explicitly when they do not want CI, log, runner, or generated output directories processed.
+- Documented that `allow_untrusted_root_in_test` is test-only, requires the expected signer thumbprint, and does not relax production certificate verification defaults.
 
 ### Notes
 - This release changes the effective default exclusion set for consumers who relied on built-in defaults.
 - Review consuming workflows and set explicit exclusions before upgrading if your repositories contain CI, log, runner, or generated artifact directories.
 - Prefer upgrading through `mennotech/github-workflows` when possible so repository-specific defaults and guardrails can be managed at the workflow layer.
+- Compared to `v1.0.2`, certificate handling guidance is now stricter: self-signed test certificates are handled through explicit test-only verification overrides rather than any broad acceptance of `UnknownError` or trust-store modification.
 
 ## [1.0.2] - 2026-03-19
 

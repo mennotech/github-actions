@@ -128,6 +128,8 @@ These actions execute entirely within the caller’s workflow context (runners, 
 
 **Certificate Management**: Always use `cleanup_certificate: true` when signing files to prevent certificate persistence on self-hosted runners.
 
+**Self-Signed Test Certificates**: Starting in `v1.1.0`, self-signed certificates used in CI tests are expected to remain untrusted by default. Test workflows can opt into `allow_untrusted_root_in_test: true` only for signature verification scenarios where `Get-AuthenticodeSignature` reports `UnknownError` because the chain ends in an untrusted root. That override is intentionally narrow: it should be used only in test workflows, only together with the expected `cert_thumbprint`, and it accepts only the specific untrusted-root case. Production workflows remain strict by default and should continue to require fully trusted signing certificates.
+
 **Explicit Deployment Exclusions**: `deploy-files-windows` now treats `exclude_dirs` and `exclude_files` as additional caller-controlled exclusions. Only `.git` is enforced automatically. If you do not provide your own exclusions, robocopy mirrors everything else in the source tree into the destination, including CI and runner artifacts you may not want in production. Common examples to exclude explicitly are `.github`, `logs`, and `_work`, plus any environment-specific config or generated output directories.
 
 ## Example Usage

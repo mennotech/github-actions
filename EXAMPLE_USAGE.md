@@ -86,3 +86,10 @@ If you use actions from this repository directly, you should assume responsibili
 - passing explicit exclusions for repository-specific directories and generated output
 - enabling certificate cleanup and other security-sensitive options explicitly
 - reviewing release notes for behavior changes that reusable workflows may otherwise absorb for you
+
+### Certificate Handling Guidance
+
+- Use `import-codesigning-cert-windows` to load a PFX into `CurrentUser\My`, and prefer `cleanup_certificate: true` on the signing step so imported certificates do not persist on self-hosted runners.
+- Production workflows should use trusted signing certificates and keep signature verification strict.
+- Test workflows that use self-signed certificates may see `Get-AuthenticodeSignature` return `UnknownError` because the root is not trusted. In that narrow case, `codesign-files-windows` supports `allow_untrusted_root_in_test: true`, but only for test verification and only when you also pass the expected `cert_thumbprint`.
+- Do not treat `allow_untrusted_root_in_test` as a general-purpose bypass. It is intended only for self-signed CI test certificates and only for the specific untrusted-root case.

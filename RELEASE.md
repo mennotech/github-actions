@@ -100,6 +100,18 @@ Most application repositories should prefer `mennotech/github-workflows`, where 
 Direct `mennotech/github-actions` usage remains available for advanced custom workflows.
 ```
 
+If a release changes certificate-handling behavior or guidance, call that out explicitly as well. For example:
+
+```markdown
+## Certificate Handling Note
+
+Production verification remains strict by default.
+
+For CI tests that use self-signed certificates, `codesign-files-windows` can accept the specific untrusted-root `UnknownError` case only when the workflow opts in explicitly and supplies the expected signer thumbprint.
+
+Do not use this as a production bypass or as a general acceptance of all `UnknownError` results.
+```
+
 ## When to Bump Versions
 
 - Patch: bug fix only, no breaking behavior change

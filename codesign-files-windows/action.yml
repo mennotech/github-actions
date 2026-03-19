@@ -45,7 +45,8 @@ inputs:
     description: >
       Test-only override: accept UnknownError only when the signer thumbprint
       matches the expected certificate and the status message indicates an
-      untrusted root
+      untrusted root; requires cert_thumbprint and is not intended for
+      production workflows
     required: false
     default: 'false'
 runs:
