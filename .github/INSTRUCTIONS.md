@@ -53,8 +53,6 @@ When building actions in this repository, consider:
 
 ## Technical Structure
 
-## Technical Structure
-
 ### File Organization
 ```
 mennotech/github-actions/
@@ -88,8 +86,6 @@ mennotech/github-actions/
 - **Current**: Windows self-hosted runners with PowerShell 7+
 - **Future**: Cross-platform support (Windows, Linux, macOS)
 - **Certificate operations**: Platform-specific (Windows Certificate Store, file-based PEM/PFX)
-- **Dependencies**: Platform-specific implementations (PowerShell, Bash, Python)
-- **Migration**: See [Cross-Platform Migration Guide](CROSS_PLATFORM_MIGRATION.md)
 
 
 ## Action Development Standards
@@ -197,10 +193,8 @@ $Path = $env:GITHUB_WORKSPACE ? $env:GITHUB_WORKSPACE : "."
 $resolvedPath = Resolve-Path $Path -ErrorAction Stop
 ```
 
-#### Array Environment Variables
-```powershell
-[string[]]$ExcludeDirs = $env:EXCLUDE_DIRS ? $env:EXCLUDE_DIRS -split ',' : @(".git", ".github")
-```
+#### Array Parameters from Environment
+Array-valued parameters use the shared `Get-StringArrayParameterFromEnvironment` helper from `shared/GitHubActions.Common.psm1` to resolve comma-delimited environment variables when the parameter was not explicitly bound by the caller.
 
 #### TestOnly Pattern
 ```powershell
@@ -263,22 +257,13 @@ inputs:
     default: 'false'
 ```
 
-### Array Inputs
-```yaml
-inputs:
-  exclude_dirs:
-    description: 'Comma-separated list of directories to exclude'
-    required: false
-    default: '.git,.github,_work,logs'
-```
-
 ---
 
 ## Security Guidelines
 
 ### Certificate Handling (CRITICAL)
 1. **Import certificates to CurrentUser\My only** (not LocalMachine)
-2. **Always clean up certificates** after use via `-CleanupCertificate` switch
+2. **Always clean up certificates** after use - `cleanup_certificate` defaults to `true`
 3. **Use thumbprint tracking** via `$env:IMPORTED_CERT_THUMBPRINT`
 4. **Self-hosted runners** persist certificates between jobs - cleanup is mandatory
 
@@ -299,7 +284,7 @@ CodeSign-Files.ps1 -CertThumbprint $env:IMPORTED_CERT_THUMBPRINT -CleanupCertifi
 ### File System Security
 ```powershell
 # Temporary files MUST be cleaned up
-$tempFile = Join-Path $PSScriptRoot "temp_$(Get-Random).tmp"
+$tempFile = Join-Path ([System.IO.Path]::GetTempPath()) "temp_$(Get-Random).tmp"
 try {
     # Use temp file
 } finally {
@@ -317,12 +302,12 @@ try {
 1. **PowerShell script testing**:
    ```powershell
    # Test with direct parameters
-   .\Import-CodeSigningCertificate.ps1 -PfxBase64 "test-data" -PfxPassword (ConvertTo-SecureString "pass" -AsPlainText -Force)
+   .\Import-CodeSigningCert.ps1 -PfxBase64 "test-data" -PfxPassword (ConvertTo-SecureString "pass" -AsPlainText -Force)
    
    # Test with environment variables (simulates action)
-   $env:INPUT_PFX_BASE64 = "test-data"
-   $env:INPUT_PFX_PASSWORD = "test-pass"
-   .\Import-CodeSigningCertificate.ps1
+   $env:CODESIGN_PFX_BASE64 = "test-data"
+   $env:CODESIGN_PFX_PASSWORD = "test-pass"
+   .\Import-CodeSigningCert.ps1
    ```
 
 2. **Action validation**: Use VS Code GitHub Actions extension or `actionlint`
@@ -391,7 +376,6 @@ jobs:
 **Purpose**: Import PFX certificate from secrets into Windows certificate store
 **Dependencies**: None
 **Outputs**: `IMPORTED_CERT_THUMBPRINT` environment variable
-**Script**: `Import-CodeSigningCert.ps1` (renamed from `Import-CodeSigningCertificate.ps1`)
 
 ```yaml
 uses: mennotech/github-actions/import-codesigning-cert-windows@v1
@@ -403,14 +387,13 @@ with:
 #### codesign-files-windows  
 **Purpose**: Sign PowerShell files with imported certificate
 **Dependencies**: Requires certificate (typically from import-codesigning-cert-windows)
-**Security**: Auto-cleanup via `cleanup_certificate: true`
+**Security**: Certificate cleanup is enabled by default (`cleanup_certificate: true`)
 
 ```yaml
 uses: mennotech/github-actions/codesign-files-windows@v1
 with:
   timestamp_server: "http://timestamp.digicert.com"
   recurse: true
-  cleanup_certificate: true
 ```
 
 #### deploy-files-windows
@@ -455,4 +438,4 @@ Enable detailed output by setting `$VerbosePreference = 'Continue'` in scripts o
 
 ---
 
-*Last updated: March 12, 2026*
+*Last updated: March 2026*

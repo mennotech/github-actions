@@ -83,7 +83,7 @@ Initial stable release of Mennotech reusable GitHub Actions for Windows.
 
 ### Notes
 - Intended for Windows self-hosted runners
-- Use `cleanup_certificate: true` when signing files on persistent runners
+- Certificate cleanup is enabled by default; pass `cleanup_certificate: false` only if the certificate must persist within the same job
 ```
 
 For releases like `v1.1.0` that change default exclusions, add an explicit warning near the top of the release notes, for example:

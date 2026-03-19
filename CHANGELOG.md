@@ -6,6 +6,22 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-03-19
+
+### Security
+- `codesign-files-windows` now defaults `cleanup_certificate` to `true`. Imported signing certificates are removed from the Windows certificate store after signing unless the caller explicitly opts out. This prevents certificate persistence on self-hosted runners.
+- `import-codesigning-cert-windows` no longer logs the temporary PFX file path during import.
+- `deploy-files-windows` now logs a warning when the permission-test temporary file cannot be removed instead of silently continuing.
+
+### Documentation
+- Trimmed verbose and redundant content from `INSTRUCTIONS.md`, `README.md`, and `EXAMPLE_USAGE.md`.
+- Fixed broken reference to non-existent `CROSS_PLATFORM_MIGRATION.md` in `INSTRUCTIONS.md`.
+- Updated `INSTRUCTIONS.md` security guidelines to reflect the new `cleanup_certificate` default.
+- Simplified certificate handling guidance throughout to remove repetition.
+
+### Notes
+- Callers that previously relied on `cleanup_certificate` defaulting to `false` must now pass `cleanup_certificate: false` explicitly if they need the certificate to persist after signing (e.g., for a subsequent verification step in the same job).
+
 ## Release Notes Highlight
 
 - `v1.1.0` is a minor release because the default deployment and signing exclusion behavior changed.
@@ -69,6 +85,7 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 ### Security
 - Added certificate cleanup support and explicit guidance to remove imported signing certificates after use.
 
+[1.1.1]: https://github.com/mennotech/github-actions/releases/tag/v1.1.1
 [1.1.0]: https://github.com/mennotech/github-actions/releases/tag/v1.1.0
 [1.0.2]: https://github.com/mennotech/github-actions/releases/tag/v1.0.2
 [1.0.1]: https://github.com/mennotech/github-actions/releases/tag/v1.0.1
