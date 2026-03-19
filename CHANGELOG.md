@@ -6,10 +6,22 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 
 ## [Unreleased]
 
+## Release Notes Highlight
+
+- `v1.1.0` is a minor release because the default deployment and signing exclusion behavior changed.
+- `exclude_dirs` and `exclude_files` are now caller-controlled additive exclusions rather than broad built-in defaults.
+- Only `.git` remains enforced automatically, so consumers should review and explicitly provide exclusions such as `.github`, `logs`, `_work`, and any generated output directories they do not want deployed or signed.
+- Most consuming repositories should prefer `mennotech/github-workflows`, where Mennotech can provide sane defaults and safer orchestration guidance. Direct `mennotech/github-actions` usage should be treated as an advanced integration path.
+
 ## [1.1.0] - 2026-03-19
 
 ### Changed
 - `codesign-files-windows` and `deploy-files-windows` now treat `exclude_dirs` and `exclude_files` inputs as additional caller-supplied exclusions instead of shipping broad default exclusion lists.
+
+### Notes
+- This release changes the effective default exclusion set for consumers who relied on built-in defaults.
+- Review consuming workflows and set explicit exclusions before upgrading if your repositories contain CI, log, runner, or generated artifact directories.
+- Prefer upgrading through `mennotech/github-workflows` when possible so repository-specific defaults and guardrails can be managed at the workflow layer.
 
 ## [1.0.2] - 2026-03-19
 

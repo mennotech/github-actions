@@ -4,6 +4,12 @@
 
 Central repository containing Mennotech maintained reusable GitHub Actions. These actions are designed to be consumed by workflows in [`mennotech/github-workflows`](https://github.com/mennotech/github-workflows) and other repositories using the standard marketplace pattern.
 
+> **Recommended consumption path**
+>
+> Most application repositories should use [`mennotech/github-workflows`](https://github.com/mennotech/github-workflows), not this repository directly.
+> The reusable workflows are where Mennotech intends to provide sane orchestration defaults, safety guardrails, and upgrade guidance.
+> Direct `mennotech/github-actions` usage is supported for advanced callers building custom workflows who are prepared to manage exclusions, ordering, and security settings explicitly.
+
 ## Repository Architecture
 
 This repository is part of a three-tier DevOps architecture:
@@ -12,7 +18,7 @@ This repository is part of a three-tier DevOps architecture:
 **Purpose**: Low-level reusable actions for specific tasks
 - ✅ **Atomic Actions**: Certificate import, code signing, file deployment
 - ✅ **Cross-Platform Support**: Windows (current), Linux/macOS (planned)
-- ✅ **Direct Consumption**: `uses: mennotech/github-actions/action-name@v1`
+- ✅ **Advanced Building Blocks**: `uses: mennotech/github-actions/action-name@v1`
 - ✅ **Single Responsibility**: Each action performs one specific task
 
 ### 🔄 [mennotech/github-workflows](https://github.com/mennotech/github-workflows)
@@ -33,11 +39,30 @@ This repository is part of a three-tier DevOps architecture:
 
 | Need | Repository | Example |
 |------|------------|---------|
-| **Simple Task** | mennotech/github-actions | Just sign some files |
-| **Complete Pipeline** | mennotech/github-workflows | Build, sign, test, deploy workflow |
-| **Custom Workflow** | Build your own | Use github-actions as building blocks |
+| **Default choice for applications** | mennotech/github-workflows | Build, sign, test, and deploy with sane defaults |
+| **Advanced low-level composition** | mennotech/github-actions | Build a custom workflow when you need direct control |
+| **Custom orchestration** | Build your own | Use github-actions as building blocks if you know what you are doing |
 
 ## Quick Start
+
+### Recommended: Use `mennotech/github-workflows`
+
+For most repositories, consume the reusable workflow layer and keep application-specific settings there:
+
+```yaml
+jobs:
+  deploy:
+    uses: mennotech/github-workflows/sign-and-deploy-windows@v1
+    secrets: inherit
+    with:
+      destination_path: "C:\\Scripts\\MyApp"
+      exclude_dirs: "logs"
+      exclude_files: "*.crt,Config.json"
+```
+
+### Advanced: Use `mennotech/github-actions` Directly
+
+Use the low-level actions in this repository directly only when you need custom orchestration and are prepared to manage exclusions, security settings, and step ordering yourself.
 
 ```yaml
 # In your workflow file
@@ -99,13 +124,15 @@ For contributors and maintainers:
 
 These actions execute entirely within the caller’s workflow context (runners, permissions, secrets).
 
+**Excluded Files and Folders**: Only `.git` is excluded automatically (starting in v1.1.0), so direct callers should explicitly pass exclusions such as `.github`, `logs`, `*.crt`, and any generated output directories or files they do not want processed.
+
 **Certificate Management**: Always use `cleanup_certificate: true` when signing files to prevent certificate persistence on self-hosted runners.
 
 **Explicit Deployment Exclusions**: `deploy-files-windows` now treats `exclude_dirs` and `exclude_files` as additional caller-controlled exclusions. Only `.git` is enforced automatically. If you do not provide your own exclusions, robocopy mirrors everything else in the source tree into the destination, including CI and runner artifacts you may not want in production. Common examples to exclude explicitly are `.github`, `logs`, and `_work`, plus any environment-specific config or generated output directories.
 
 ## Example Usage
 
-See [**📄 Example Usage**](./EXAMPLE_USAGE.md) for complete workflow examples and migration guidance from inline PowerShell scripts.
+See [**📄 Example Usage**](./EXAMPLE_USAGE.md) for recommended `github-workflows` consumption patterns, advanced direct action usage guidance, and migration notes.
 
 ---
 

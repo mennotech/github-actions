@@ -12,12 +12,13 @@ inputs:
   exclude_dirs:
     description: >
       Comma-separated list of additional directories to exclude from deployment
-      (.git is always excluded)
+      (.git is always excluded; no other default directories are excluded)
     required: false
     default: ''
   exclude_files:
     description: >
       Comma-separated list of additional file patterns to exclude from deployment
+      (no default file exclusions are applied)
     required: false
     default: ''
   robocopy_options:

@@ -52,6 +52,10 @@ git push -f origin v1
 
 For a patch release such as `v1.0.1` or a minor release such as `v1.1.0`, repeat the same process with the new version tag and update the moving `v1` tag to the same release commit.
 
+When a release changes default action behavior without changing inputs or action names, treat it as a minor release and call the behavior change out prominently in the GitHub release notes and changelog summary.
+
+When the repository is intended to be consumed primarily through `mennotech/github-workflows`, say that explicitly in the release notes so application teams do not assume direct action usage is the recommended default.
+
 Example for the current minor release:
 
 ```powershell
@@ -82,8 +86,22 @@ Initial stable release of Mennotech reusable GitHub Actions for Windows.
 - Use `cleanup_certificate: true` when signing files on persistent runners
 ```
 
+For releases like `v1.1.0` that change default exclusions, add an explicit warning near the top of the release notes, for example:
+
+```markdown
+## Important Upgrade Note
+
+`deploy-files-windows` and `codesign-files-windows` no longer ship broad default exclusion lists.
+Only `.git` is excluded automatically.
+
+If consuming repositories need to exclude `.github`, `logs`, `_work`, or generated output directories, those exclusions must now be passed explicitly by the caller.
+
+Most application repositories should prefer `mennotech/github-workflows`, where Mennotech can centralize sane defaults and safer orchestration.
+Direct `mennotech/github-actions` usage remains available for advanced custom workflows.
+```
+
 ## When to Bump Versions
 
 - Patch: bug fix only, no breaking behavior change
-- Minor: new feature or backward-compatible enhancement
+- Minor: new feature, backward-compatible enhancement, or a non-breaking default behavior change that consumers need to notice
 - Major: breaking change in action name, inputs, outputs, or behavior
