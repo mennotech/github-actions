@@ -15,8 +15,22 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 
 ## [1.1.0] - 2026-03-19
 
+### Added
+- `shared/GitHubActions.Common.psm1` to centralize common PowerShell helper logic used across reusable actions.
+- Repository line-ending rules for YAML files so local `yamllint` runs and CI expect the same LF formatting.
+
 ### Changed
 - `codesign-files-windows` and `deploy-files-windows` now treat `exclude_dirs` and `exclude_files` inputs as additional caller-supplied exclusions instead of shipping broad default exclusion lists.
+- Array-valued action parameters now resolve environment variables through shared helper logic instead of maintaining duplicated parsing in each script.
+- User-facing documentation now recommends `mennotech/github-workflows` as the default consumer path for most repositories, with direct `mennotech/github-actions` usage positioned as an advanced option.
+
+### Fixed
+- Local PowerShell validation now ignores `.venv` content and runs `PSScriptAnalyzer` reliably per repository file.
+- YAML files were normalized to LF line endings so repository `yamllint` runs pass consistently.
+
+### Documentation
+- Updated README, example usage, and release guidance to highlight the `v1.1.0` exclusion behavior change and explain when consumers should prefer `mennotech/github-workflows`.
+- Clarified that direct action consumers must pass repository-specific exclusions explicitly when they do not want CI, log, runner, or generated output directories processed.
 
 ### Notes
 - This release changes the effective default exclusion set for consumers who relied on built-in defaults.
