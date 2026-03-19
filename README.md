@@ -101,7 +101,7 @@ These actions execute entirely within the caller’s workflow context (runners, 
 
 **Certificate Management**: Always use `cleanup_certificate: true` when signing files to prevent certificate persistence on self-hosted runners.
 
-**Explicit Deployment Exclusions**: `deploy-files-windows` now treats `exclude_dirs` and `exclude_files` as additional caller-controlled exclusions. Only `.git` is enforced automatically, so production workflows should pass any repository- or environment-specific exclusions explicitly.
+**Explicit Deployment Exclusions**: `deploy-files-windows` now treats `exclude_dirs` and `exclude_files` as additional caller-controlled exclusions. Only `.git` is enforced automatically. If you do not provide your own exclusions, robocopy mirrors everything else in the source tree into the destination, including CI and runner artifacts you may not want in production. Common examples to exclude explicitly are `.github`, `logs`, and `_work`, plus any environment-specific config or generated output directories.
 
 ## Example Usage
 

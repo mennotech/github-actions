@@ -72,49 +72,12 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-if (-not $PSBoundParameters.ContainsKey('ExcludeDirs')) {
-    if ($null -ne $env:EXCLUDE_DIRS) {
-        $ExcludeDirs = if ([string]::IsNullOrWhiteSpace($env:EXCLUDE_DIRS)) {
-            @()
-        } else {
-            $env:EXCLUDE_DIRS -split ','
-        }
-    }
-}
+Import-Module (Join-Path $PSScriptRoot '..\shared\GitHubActions.Common.psm1') -Force
+
+$ExcludeDirs = Get-StringArrayParameterFromEnvironment -BoundParameters $PSBoundParameters -ParameterName 'ExcludeDirs' -EnvironmentVariableName 'EXCLUDE_DIRS' -CurrentValue $ExcludeDirs
 
 
 #region Helper Functions
-
-function Get-EffectiveExcludeDirs {
-    [CmdletBinding()]
-    [OutputType([string[]])]
-    param(
-        [Parameter()]
-        [string[]]$ExcludeDirs = @(),
-
-        [Parameter()]
-        [string[]]$MandatoryExcludeDirs = @('.git')
-    )
-
-    $effectiveExcludeDirs = [System.Collections.Generic.List[string]]::new()
-
-    foreach ($excludeDir in @($MandatoryExcludeDirs) + @($ExcludeDirs)) {
-        $normalizedExcludeDir = $excludeDir.Trim()
-        if ([string]::IsNullOrWhiteSpace($normalizedExcludeDir)) {
-            continue
-        }
-
-        $alreadyIncluded = $effectiveExcludeDirs | Where-Object {
-            $_.Equals($normalizedExcludeDir, [System.StringComparison]::OrdinalIgnoreCase)
-        }
-
-        if (-not $alreadyIncluded) {
-            $effectiveExcludeDirs.Add($normalizedExcludeDir)
-        }
-    }
-
-    return [string[]]$effectiveExcludeDirs
-}
 
 function Get-CodeSigningCertificate {
     [CmdletBinding()]
@@ -200,7 +163,7 @@ function Find-PowerShellFile {
 
     $resolvedPath = (Resolve-Path $Path).Path
 
-    $effectiveExcludeDirs = Get-EffectiveExcludeDirs -ExcludeDirs $ExcludeDirs
+    $effectiveExcludeDirs = Get-EffectiveExcludeDirList -ExcludeDirs $ExcludeDirs
 
     Write-Host "Searching for PowerShell files in: $resolvedPath" -ForegroundColor Gray
     if ($effectiveExcludeDirs.Count -gt 0) {

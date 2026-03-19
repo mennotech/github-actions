@@ -66,63 +66,17 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-if (-not $PSBoundParameters.ContainsKey('ExcludeDirs')) {
-    if ($null -ne $env:EXCLUDE_DIRS) {
-        $ExcludeDirs = if ([string]::IsNullOrWhiteSpace($env:EXCLUDE_DIRS)) {
-            @()
-        } else {
-            $env:EXCLUDE_DIRS -split ','
-        }
-    }
-}
+Import-Module (Join-Path $PSScriptRoot '..\shared\GitHubActions.Common.psm1') -Force
 
-if (-not $PSBoundParameters.ContainsKey('ExcludeFiles')) {
-    if ($null -ne $env:EXCLUDE_FILES) {
-        $ExcludeFiles = if ([string]::IsNullOrWhiteSpace($env:EXCLUDE_FILES)) {
-            @()
-        } else {
-            $env:EXCLUDE_FILES -split ','
-        }
-    }
-}
-
-function Get-EffectiveExcludeDirs {
-    [CmdletBinding()]
-    [OutputType([string[]])]
-    param(
-        [Parameter()]
-        [string[]]$ExcludeDirs = @(),
-
-        [Parameter()]
-        [string[]]$MandatoryExcludeDirs = @('.git')
-    )
-
-    $effectiveExcludeDirs = [System.Collections.Generic.List[string]]::new()
-
-    foreach ($excludeDir in @($MandatoryExcludeDirs) + @($ExcludeDirs)) {
-        $normalizedExcludeDir = $excludeDir.Trim()
-        if ([string]::IsNullOrWhiteSpace($normalizedExcludeDir)) {
-            continue
-        }
-
-        $alreadyIncluded = $effectiveExcludeDirs | Where-Object {
-            $_.Equals($normalizedExcludeDir, [System.StringComparison]::OrdinalIgnoreCase)
-        }
-
-        if (-not $alreadyIncluded) {
-            $effectiveExcludeDirs.Add($normalizedExcludeDir)
-        }
-    }
-
-    return [string[]]$effectiveExcludeDirs
-}
+$ExcludeDirs = Get-StringArrayParameterFromEnvironment -BoundParameters $PSBoundParameters -ParameterName 'ExcludeDirs' -EnvironmentVariableName 'EXCLUDE_DIRS' -CurrentValue $ExcludeDirs
+$ExcludeFiles = Get-StringArrayParameterFromEnvironment -BoundParameters $PSBoundParameters -ParameterName 'ExcludeFiles' -EnvironmentVariableName 'EXCLUDE_FILES' -CurrentValue $ExcludeFiles
 
 try {
     Write-Host "Starting deployment process..." -ForegroundColor Cyan
     Write-Host "  Source: $SourcePath" -ForegroundColor Gray
     Write-Host "  Destination: $DestinationPath" -ForegroundColor Gray
 
-    $effectiveExcludeDirs = Get-EffectiveExcludeDirs -ExcludeDirs $ExcludeDirs
+    $effectiveExcludeDirs = Get-EffectiveExcludeDirList -ExcludeDirs $ExcludeDirs
 
     # Resolve source path
     $resolvedSource = Resolve-Path $SourcePath -ErrorAction Stop
