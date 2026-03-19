@@ -19,9 +19,9 @@ inputs:
     required: false
     default: '*.ps1,*.psm1,*.psd1'
   exclude_dirs:
-    description: 'Comma-separated list of directories to exclude from search (.git is always excluded)'
+    description: 'Comma-separated list of additional directories to exclude from search (.git is always excluded)'
     required: false
-    default: '.git,.github'
+    default: ''
   cert_thumbprint:
     description: >
       Specific certificate thumbprint to use (defaults to

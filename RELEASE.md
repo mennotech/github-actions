@@ -50,7 +50,19 @@ git push -f origin v1
 7. Paste the `CHANGELOG.md` entry into the GitHub release notes.
 8. Test one consuming workflow against `@v1.0.0` or `@v1`.
 
-For a patch release such as `v1.0.1`, repeat the same process with the new version tag and update the moving `v1` tag to the same release commit.
+For a patch release such as `v1.0.1` or a minor release such as `v1.1.0`, repeat the same process with the new version tag and update the moving `v1` tag to the same release commit.
+
+Example for the current minor release:
+
+```powershell
+git checkout main
+git pull --ff-only origin main
+git tag -a v1.1.0 -m "github-actions v1.1.0"
+git push origin v1.1.0
+
+git tag -f -a v1 -m "github-actions v1"
+git push -f origin v1
+```
 
 ## GitHub Release Notes Template
 

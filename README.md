@@ -58,6 +58,8 @@ steps:
     uses: mennotech/github-actions/deploy-files-windows@v1
     with:
       destination_path: "C:\\Scripts\\MyApp"
+      exclude_dirs: ".github,logs"
+      exclude_files: "*.crt,Config.json"
 ```
 
 ## Available Actions
@@ -98,6 +100,8 @@ For contributors and maintainers:
 These actions execute entirely within the caller’s workflow context (runners, permissions, secrets).
 
 **Certificate Management**: Always use `cleanup_certificate: true` when signing files to prevent certificate persistence on self-hosted runners.
+
+**Explicit Deployment Exclusions**: `deploy-files-windows` now treats `exclude_dirs` and `exclude_files` as additional caller-controlled exclusions. Only `.git` is enforced automatically, so production workflows should pass any repository- or environment-specific exclusions explicitly.
 
 ## Example Usage
 

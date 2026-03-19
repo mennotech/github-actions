@@ -54,7 +54,7 @@ param(
     [array]$FileMatch = $env:FILE_MATCH ? $env:FILE_MATCH -split ',' : @("*.ps1", "*.psm1", "*.psd1"),
 
     [Parameter()]
-    [string[]]$ExcludeDirs = $env:EXCLUDE_DIRS ? $env:EXCLUDE_DIRS -split ',' : @(".git", ".github"),
+    [string[]]$ExcludeDirs = @(),
 
     [Parameter()]
     [string]$CertThumbprint = $env:IMPORTED_CERT_THUMBPRINT,
@@ -71,6 +71,16 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if (-not $PSBoundParameters.ContainsKey('ExcludeDirs')) {
+    if ($null -ne $env:EXCLUDE_DIRS) {
+        $ExcludeDirs = if ([string]::IsNullOrWhiteSpace($env:EXCLUDE_DIRS)) {
+            @()
+        } else {
+            $env:EXCLUDE_DIRS -split ','
+        }
+    }
+}
 
 
 #region Helper Functions

@@ -45,10 +45,10 @@ param(
     [string]$DestinationPath = ($env:DESTINATION_PATH ? $env:DESTINATION_PATH : (throw "DestinationPath parameter is required. Provide DESTINATION_PATH environment variable or use -DestinationPath parameter.")),
 
     [Parameter()]
-    [string[]]$ExcludeDirs = ($env:EXCLUDE_DIRS ? $env:EXCLUDE_DIRS -split ',' : @(".git", ".github", "_work", "logs")),
+    [string[]]$ExcludeDirs = @(),
 
     [Parameter()]
-    [string[]]$ExcludeFiles = ($env:EXCLUDE_FILES ? $env:EXCLUDE_FILES -split ',' : @("*.crt", "Config.json")),
+    [string[]]$ExcludeFiles = @(),
 
     [Parameter()]
     [string[]]$RobocopyOptions = ($env:ROBOCOPY_OPTIONS ? $env:ROBOCOPY_OPTIONS -split ',' : @(
@@ -65,6 +65,26 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if (-not $PSBoundParameters.ContainsKey('ExcludeDirs')) {
+    if ($null -ne $env:EXCLUDE_DIRS) {
+        $ExcludeDirs = if ([string]::IsNullOrWhiteSpace($env:EXCLUDE_DIRS)) {
+            @()
+        } else {
+            $env:EXCLUDE_DIRS -split ','
+        }
+    }
+}
+
+if (-not $PSBoundParameters.ContainsKey('ExcludeFiles')) {
+    if ($null -ne $env:EXCLUDE_FILES) {
+        $ExcludeFiles = if ([string]::IsNullOrWhiteSpace($env:EXCLUDE_FILES)) {
+            @()
+        } else {
+            $env:EXCLUDE_FILES -split ','
+        }
+    }
+}
 
 function Get-EffectiveExcludeDirs {
     [CmdletBinding()]
