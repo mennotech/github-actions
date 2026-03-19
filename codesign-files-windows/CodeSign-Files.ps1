@@ -319,7 +319,7 @@ function Invoke-PowerShellFileSigning {
         [string]$TimestampServer = "http://timestamp.digicert.com"
     )
 
-    $acceptableStatuses = @('Valid', 'UnknownError')
+    $untrustedRootMessagePattern = 'terminated in a root certificate which is not trusted by the trust provider'
 
     $signedCount = 0
     $failedCount = 0
@@ -330,7 +330,19 @@ function Invoke-PowerShellFileSigning {
 
             $sig = Set-AuthenticodeSignature -FilePath $file.FullName -Certificate $Certificate -TimestampServer $TimestampServer
 
-            if ($sig.Status -in $acceptableStatuses -and $sig.SignerCertificate -and $sig.SignerCertificate.Thumbprint -eq $Certificate.Thumbprint) {
+            $isAcceptedSignature = $sig.Status -eq 'Valid'
+
+            if (
+                -not $isAcceptedSignature -and
+                $sig.Status -eq 'UnknownError' -and
+                $sig.StatusMessage -match $untrustedRootMessagePattern -and
+                $sig.SignerCertificate -and
+                $sig.SignerCertificate.Thumbprint -eq $Certificate.Thumbprint
+            ) {
+                $isAcceptedSignature = $true
+            }
+
+            if ($isAcceptedSignature) {
                 Write-Host "  Success" -ForegroundColor Green
                 $signedCount++
             } else {
