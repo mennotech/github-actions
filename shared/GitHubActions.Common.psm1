@@ -63,12 +63,12 @@ function Get-StringArrayParameterFromEnvironment {
     )
 
     if ($BoundParameters.ContainsKey($ParameterName)) {
-        return [string[]]@($CurrentValue)
+        return [string[]]$CurrentValue
     }
 
     $environmentValue = [System.Environment]::GetEnvironmentVariable($EnvironmentVariableName)
     if ($null -eq $environmentValue) {
-        return [string[]]@($CurrentValue)
+        return [string[]]$CurrentValue
     }
 
     if ([string]::IsNullOrWhiteSpace($environmentValue)) {
@@ -121,6 +121,10 @@ function Get-EffectiveExcludeDirList {
     $effectiveExcludeDirs = [System.Collections.Generic.List[string]]::new()
 
     foreach ($excludeDir in @($MandatoryExcludeDirs) + @($ExcludeDirs)) {
+        if ($null -eq $excludeDir) {
+            continue
+        }
+
         $normalizedExcludeDir = $excludeDir.Trim()
         if ([string]::IsNullOrWhiteSpace($normalizedExcludeDir)) {
             continue

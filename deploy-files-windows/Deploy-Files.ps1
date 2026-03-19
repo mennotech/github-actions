@@ -77,7 +77,7 @@ try {
     Write-Host "  Source: $SourcePath" -ForegroundColor Gray
     Write-Host "  Destination: $DestinationPath" -ForegroundColor Gray
 
-    $effectiveExcludeDirs = Get-EffectiveExcludeDirList -ExcludeDirs $ExcludeDirs
+    [string[]]$effectiveExcludeDirs = Get-EffectiveExcludeDirList -ExcludeDirs $ExcludeDirs
 
     # Resolve source path
     $resolvedSource = Resolve-Path $SourcePath -ErrorAction Stop

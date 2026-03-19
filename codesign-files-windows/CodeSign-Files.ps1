@@ -164,7 +164,7 @@ function Find-PowerShellFile {
 
     $resolvedPath = (Resolve-Path $Path).Path
 
-    $effectiveExcludeDirs = Get-EffectiveExcludeDirList -ExcludeDirs $ExcludeDirs
+    [string[]]$effectiveExcludeDirs = Get-EffectiveExcludeDirList -ExcludeDirs $ExcludeDirs
 
     Write-Host "Searching for PowerShell files in: $resolvedPath" -ForegroundColor Gray
     if ($effectiveExcludeDirs.Count -gt 0) {
@@ -191,7 +191,7 @@ function Find-PowerShellFile {
     }
 
     Write-Host "Found $($files.Count) PowerShell file(s)" -ForegroundColor Gray
-    return $files
+    return [System.IO.FileInfo[]]$files
 }
 
 function Test-PowerShellFileSignature {
@@ -351,8 +351,8 @@ try {
     }
 
 } catch {
-    Write-Error "PowerShell file signing failed: $_"
     $exitCode = 1
+    Write-Host "PowerShell file signing failed: $_" -ForegroundColor Red
 } finally {
     if ($CleanupCertificate -and $cert) {
         try {
