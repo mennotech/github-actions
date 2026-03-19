@@ -6,6 +6,9 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 
 ## [Unreleased]
 
+### Security
+- `codesign-files-windows` and `deploy-files-windows` now enforce `.git` as a mandatory exclusion even if callers override `exclude_dirs`.
+
 ## [1.0.1] - 2026-03-19
 
 ### Fixed

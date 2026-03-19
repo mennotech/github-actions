@@ -12,6 +12,7 @@ inputs:
   exclude_dirs:
     description: >
       Comma-separated list of directories to exclude from deployment
+      (.git is always excluded)
     required: false
     default: '.git,.github,_work,logs'
   exclude_files:

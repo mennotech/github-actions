@@ -66,10 +66,43 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function Get-EffectiveExcludeDirs {
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param(
+        [Parameter()]
+        [string[]]$ExcludeDirs = @(),
+
+        [Parameter()]
+        [string[]]$MandatoryExcludeDirs = @('.git')
+    )
+
+    $effectiveExcludeDirs = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($excludeDir in @($MandatoryExcludeDirs) + @($ExcludeDirs)) {
+        $normalizedExcludeDir = $excludeDir.Trim()
+        if ([string]::IsNullOrWhiteSpace($normalizedExcludeDir)) {
+            continue
+        }
+
+        $alreadyIncluded = $effectiveExcludeDirs | Where-Object {
+            $_.Equals($normalizedExcludeDir, [System.StringComparison]::OrdinalIgnoreCase)
+        }
+
+        if (-not $alreadyIncluded) {
+            $effectiveExcludeDirs.Add($normalizedExcludeDir)
+        }
+    }
+
+    return [string[]]$effectiveExcludeDirs
+}
+
 try {
     Write-Host "Starting deployment process..." -ForegroundColor Cyan
     Write-Host "  Source: $SourcePath" -ForegroundColor Gray
     Write-Host "  Destination: $DestinationPath" -ForegroundColor Gray
+
+    $effectiveExcludeDirs = Get-EffectiveExcludeDirs -ExcludeDirs $ExcludeDirs
 
     # Resolve source path
     $resolvedSource = Resolve-Path $SourcePath -ErrorAction Stop
@@ -108,10 +141,10 @@ try {
     )
 
     # Add excluded directories
-    if ($ExcludeDirs.Count -gt 0) {
+    if ($effectiveExcludeDirs.Count -gt 0) {
         $robocopyArgs += "/XD"
-        $robocopyArgs += $ExcludeDirs
-        Write-Host "  Excluding directories: $($ExcludeDirs -join ', ')" -ForegroundColor Gray
+        $robocopyArgs += $effectiveExcludeDirs
+        Write-Host "  Excluding directories: $($effectiveExcludeDirs -join ', ')" -ForegroundColor Gray
     }
 
     # Add excluded files

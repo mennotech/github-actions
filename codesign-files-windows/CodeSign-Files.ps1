@@ -75,6 +75,37 @@ $ErrorActionPreference = 'Stop'
 
 #region Helper Functions
 
+function Get-EffectiveExcludeDirs {
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param(
+        [Parameter()]
+        [string[]]$ExcludeDirs = @(),
+
+        [Parameter()]
+        [string[]]$MandatoryExcludeDirs = @('.git')
+    )
+
+    $effectiveExcludeDirs = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($excludeDir in @($MandatoryExcludeDirs) + @($ExcludeDirs)) {
+        $normalizedExcludeDir = $excludeDir.Trim()
+        if ([string]::IsNullOrWhiteSpace($normalizedExcludeDir)) {
+            continue
+        }
+
+        $alreadyIncluded = $effectiveExcludeDirs | Where-Object {
+            $_.Equals($normalizedExcludeDir, [System.StringComparison]::OrdinalIgnoreCase)
+        }
+
+        if (-not $alreadyIncluded) {
+            $effectiveExcludeDirs.Add($normalizedExcludeDir)
+        }
+    }
+
+    return [string[]]$effectiveExcludeDirs
+}
+
 function Get-CodeSigningCertificate {
     [CmdletBinding()]
     param(
@@ -159,16 +190,18 @@ function Find-PowerShellFile {
 
     $resolvedPath = (Resolve-Path $Path).Path
 
+    $effectiveExcludeDirs = Get-EffectiveExcludeDirs -ExcludeDirs $ExcludeDirs
+
     Write-Host "Searching for PowerShell files in: $resolvedPath" -ForegroundColor Gray
-    if ($ExcludeDirs.Count -gt 0) {
-        Write-Host "  Excluding directories: $($ExcludeDirs -join ', ')" -ForegroundColor Gray
+    if ($effectiveExcludeDirs.Count -gt 0) {
+        Write-Host "  Excluding directories: $($effectiveExcludeDirs -join ', ')" -ForegroundColor Gray
     }
 
     $files = foreach ($pattern in $FileMatch) {
         Get-ChildItem @searchParams -Filter $pattern | Where-Object {
             $filePath = $_.FullName
             $relativePath = [System.IO.Path]::GetRelativePath($resolvedPath, $filePath)
-            $matchedExcludeDir = Test-PathMatchesExcludedDirectory -RelativePath $relativePath -ExcludeDirs $ExcludeDirs
+            $matchedExcludeDir = Test-PathMatchesExcludedDirectory -RelativePath $relativePath -ExcludeDirs $effectiveExcludeDirs
             if ($matchedExcludeDir) {
                 Write-Host "Excluding file in directory '$matchedExcludeDir': $relativePath" -ForegroundColor Yellow
                 return $false
