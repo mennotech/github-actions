@@ -43,6 +43,9 @@ function Invoke-RepositoryScriptAnalyzer {
     [OutputType([System.Object[]])]
     param(
         [Parameter(Mandatory)]
+        [string[]]$Path,
+
+        [Parameter(Mandatory)]
         [string]$SettingsPath,
 
         [Parameter()]
@@ -65,7 +68,10 @@ function Invoke-RepositoryScriptAnalyzer {
 
     Write-Host 'Running PSScriptAnalyzer...' -ForegroundColor Yellow
     $resolvedSettingsPath = (Resolve-Path -Path $SettingsPath).Path
-    $results = @(Invoke-ScriptAnalyzer -Path '.' -Recurse -Settings $resolvedSettingsPath)
+    $results = foreach ($filePath in $Path) {
+        Invoke-ScriptAnalyzer -Path $filePath -Settings $resolvedSettingsPath
+    }
+    $results = @($results)
 
     if ($results.Count -eq 0) {
         Write-Host '[OK] PSScriptAnalyzer found no issues' -ForegroundColor Green
@@ -85,7 +91,8 @@ try {
 
     # Find all PowerShell files
     $psFiles = Get-ChildItem -Path "." -Include "*.ps1", "*.psm1", "*.psd1" -Recurse | Where-Object {
-        $_.FullName -notmatch '\\\.git\\'
+        $_.FullName -notmatch '\\.git\\' -and
+        $_.FullName -notmatch '\\.venv\\'
     }
 
     Write-Host "Found $($psFiles.Count) PowerShell files to validate" -ForegroundColor Gray
@@ -157,7 +164,7 @@ try {
 
     $scriptAnalyzerResults = @()
     if ($RunScriptAnalyzer) {
-        $scriptAnalyzerResults = @(Invoke-RepositoryScriptAnalyzer -SettingsPath $ScriptAnalyzerSettingsPath -RequireModule:$RequireScriptAnalyzer)
+        $scriptAnalyzerResults = @(Invoke-RepositoryScriptAnalyzer -Path $psFiles.FullName -SettingsPath $ScriptAnalyzerSettingsPath -RequireModule:$RequireScriptAnalyzer)
         Write-Host "  Lint issues: $($scriptAnalyzerResults.Count)" -ForegroundColor Gray
     }
 

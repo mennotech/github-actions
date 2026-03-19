@@ -9,6 +9,7 @@
 #>
 
 Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
 
 <#
 .SYNOPSIS
@@ -71,7 +72,7 @@ function Get-StringArrayParameterFromEnvironment {
     }
 
     if ([string]::IsNullOrWhiteSpace($environmentValue)) {
-        return @()
+        return [string[]]@()
     }
 
     $resolvedValues = [System.Collections.Generic.List[string]]::new()
