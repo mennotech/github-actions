@@ -33,18 +33,11 @@
 .PARAMETER ImportedThumbprintEnvVarName
     Environment variable name used for the imported certificate thumbprint.
 
-.PARAMETER TrustForVerification
-    Also trust the generated test certificate in the CurrentUser TrustedPublisher
-    and Root stores so post-signing verification runs with a trusted chain.
-
 .EXAMPLE
     Create-TestCertificate.ps1 -Mode ExportPfx
 
 .EXAMPLE
     Create-TestCertificate.ps1 -Mode ImportToStore -Subject "CN=TestCodeSignCert"
-
-.EXAMPLE
-    Create-TestCertificate.ps1 -Mode ImportToStore -Subject "CN=TestCodeSignCert" -TrustForVerification
 #>
 
 [CmdletBinding(SupportsShouldProcess)]
@@ -72,10 +65,7 @@ param(
     [string]$ThumbprintEnvVarName = 'TEST_CERT_THUMBPRINT',
 
     [Parameter()]
-    [string]$ImportedThumbprintEnvVarName = 'IMPORTED_CERT_THUMBPRINT',
-
-    [Parameter()]
-    [switch]$TrustForVerification
+    [string]$ImportedThumbprintEnvVarName = 'IMPORTED_CERT_THUMBPRINT'
 )
 
 Set-StrictMode -Version Latest
@@ -115,46 +105,6 @@ function Set-TestOutput {
     if ($env:GITHUB_OUTPUT -and $PSCmdlet.ShouldProcess($Name, 'Set test step output')) {
         "$Name=$Value" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding UTF8
         Write-Host "  Set step output: $Name" -ForegroundColor Gray
-    }
-}
-
-function Add-TestCertificateTrust {
-    [CmdletBinding(SupportsShouldProcess)]
-    param(
-        [Parameter(Mandatory)]
-        [System.Security.Cryptography.X509Certificates.X509Certificate2]$Certificate,
-
-        [Parameter(Mandatory)]
-        [ValidateSet('TrustedPublisher', 'Root')]
-        [string]$StoreName
-    )
-
-    if (-not $PSCmdlet.ShouldProcess($StoreName, 'Trust test certificate for verification')) {
-        return
-    }
-
-    $storeNameEnum = [System.Enum]::Parse([System.Security.Cryptography.X509Certificates.StoreName], $StoreName)
-    $store = [System.Security.Cryptography.X509Certificates.X509Store]::new(
-        $storeNameEnum,
-        [System.Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser
-    )
-
-    try {
-        $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
-
-        $existingCertificate = $store.Certificates | Where-Object {
-            $_.Thumbprint -eq $Certificate.Thumbprint
-        }
-
-        if ($existingCertificate) {
-            Write-Host "  Certificate already present in CurrentUser\\$StoreName" -ForegroundColor Gray
-            return
-        }
-
-        $store.Add($Certificate)
-        Write-Host "  Added certificate to CurrentUser\\$StoreName" -ForegroundColor Gray
-    } finally {
-        $store.Close()
     }
 }
 
@@ -202,21 +152,12 @@ try {
 
         Write-Host "[OK] Test certificate created, exported, and removed from store" -ForegroundColor Green
     } else {
-        if ($TrustForVerification) {
-            Add-TestCertificateTrust -Certificate $cert -StoreName 'TrustedPublisher'
-            Add-TestCertificateTrust -Certificate $cert -StoreName 'Root'
-        }
-
         Set-TestEnvironmentVariable -Name $ThumbprintEnvVarName -Value $cert.Thumbprint
         Set-TestEnvironmentVariable -Name $ImportedThumbprintEnvVarName -Value $cert.Thumbprint
         Set-TestOutput -Name 'certificate_thumbprint' -Value $cert.Thumbprint
         Set-TestOutput -Name 'imported_certificate_thumbprint' -Value $cert.Thumbprint
 
-        if ($TrustForVerification) {
-            Write-Host "[OK] Test certificate created, trusted for verification, and left imported for signing" -ForegroundColor Green
-        } else {
-            Write-Host "[OK] Test certificate created and left imported for signing" -ForegroundColor Green
-        }
+        Write-Host "[OK] Test certificate created and left imported for signing" -ForegroundColor Green
     }
 } catch {
     Write-Error "Failed to create test certificate: $_"

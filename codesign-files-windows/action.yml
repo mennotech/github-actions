@@ -41,6 +41,13 @@ inputs:
     description: 'When testing signatures, throw an error if any files have invalid signatures'
     required: false
     default: 'false'
+  allow_untrusted_root_in_test:
+    description: >
+      Test-only override: accept UnknownError only when the signer thumbprint
+      matches the expected certificate and the status message indicates an
+      untrusted root
+    required: false
+    default: 'false'
 runs:
   using: 'composite'
   steps:
@@ -59,4 +66,5 @@ runs:
         if ('${{ inputs.cleanup_certificate }}' -eq 'true') { $args['CleanupCertificate'] = $true }
         if ('${{ inputs.test_only }}' -eq 'true') { $args['TestOnly'] = $true }
         if ('${{ inputs.fail_on_invalid }}' -eq 'true') { $args['FailOnInvalid'] = $true }
+        if ('${{ inputs.allow_untrusted_root_in_test }}' -eq 'true') { $args['AllowUntrustedRootInTest'] = $true }
         & $scriptPath @args

@@ -22,18 +22,19 @@
 .PARAMETER AcceptedStatuses
     Signature statuses that are accepted as passing.
 
+.PARAMETER AllowUntrustedRoot
+    Accept signatures with status UnknownError only when the signer thumbprint
+    matches the expected certificate and the status message indicates an
+    untrusted root.
+
 .PARAMETER ExpectCertificateCleanup
     Validates that the expected certificate thumbprint is no longer present.
-
-.PARAMETER CleanupTrustedCertificate
-    Removes the expected certificate from the CurrentUser TrustedPublisher and
-    Root stores after verification. Intended for temporary test trust cleanup.
 
 .EXAMPLE
     Verify-PowerShellSignatures.ps1 -Path "test-scripts" -ExpectedThumbprint $env:TEST_CERT_THUMBPRINT
 
 .EXAMPLE
-    Verify-PowerShellSignatures.ps1 -Path "test-scripts" -ExpectedThumbprint $env:TEST_CERT_THUMBPRINT -CleanupTrustedCertificate
+    Verify-PowerShellSignatures.ps1 -Path "test-scripts" -ExpectedThumbprint $env:TEST_CERT_THUMBPRINT -AllowUntrustedRoot
 #>
 
 [CmdletBinding()]
@@ -51,50 +52,17 @@ param(
     [string]$ExpectedThumbprint = $env:TEST_CERT_THUMBPRINT,
 
     [Parameter()]
-    [string[]]$AcceptedStatuses = @('Valid', 'UnknownError'),
+    [string[]]$AcceptedStatuses = @('Valid'),
 
     [Parameter()]
-    [switch]$ExpectCertificateCleanup,
+    [switch]$AllowUntrustedRoot,
 
     [Parameter()]
-    [switch]$CleanupTrustedCertificate
+    [switch]$ExpectCertificateCleanup
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-
-function Remove-CertificateFromCurrentUserStore {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [ValidateSet('TrustedPublisher', 'Root')]
-        [string]$StoreName,
-
-        [Parameter(Mandatory)]
-        [string]$Thumbprint
-    )
-
-    $storeNameEnum = [System.Enum]::Parse([System.Security.Cryptography.X509Certificates.StoreName], $StoreName)
-    $store = [System.Security.Cryptography.X509Certificates.X509Store]::new(
-        $storeNameEnum,
-        [System.Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser
-    )
-
-    try {
-        $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
-
-        $certificates = @($store.Certificates | Where-Object {
-            $_.Thumbprint -eq $Thumbprint
-        })
-
-        foreach ($certificate in $certificates) {
-            $store.Remove($certificate)
-            Write-Host "[OK] Removed trusted test certificate from Cert:\CurrentUser\$StoreName" -ForegroundColor Green
-        }
-    } finally {
-        $store.Close()
-    }
-}
 
 function Get-TargetFile {
     [CmdletBinding()]
@@ -133,12 +101,17 @@ function Get-TargetFile {
 try {
     Write-Host "Verifying PowerShell file signatures..." -ForegroundColor Yellow
 
+    if ($AllowUntrustedRoot -and -not $ExpectedThumbprint) {
+        throw 'AllowUntrustedRoot requires ExpectedThumbprint so the signer thumbprint can be verified'
+    }
+
     $files = Get-TargetFile -SearchPath $Path -Patterns $IncludePatterns -ExcludedDirectories $ExcludeDirs
     if ($files.Count -eq 0) {
         throw "No matching PowerShell files found in $Path"
     }
 
     $signedCount = 0
+    $untrustedRootMessagePattern = 'terminated in a root certificate which is not trusted by the trust provider'
 
     foreach ($file in $files) {
         $sig = Get-AuthenticodeSignature -FilePath $file.FullName
@@ -147,8 +120,21 @@ try {
         Write-Host "  Status: $($sig.Status)" -ForegroundColor Gray
         Write-Host "  Signer Thumbprint: $signerThumbprint" -ForegroundColor Gray
 
+        $isAcceptedStatus = $sig.Status -in $AcceptedStatuses
         if (
-            $sig.Status -in $AcceptedStatuses -and
+            -not $isAcceptedStatus -and
+            $AllowUntrustedRoot -and
+            $sig.Status -eq 'UnknownError' -and
+            $sig.StatusMessage -match $untrustedRootMessagePattern -and
+            $sig.SignerCertificate -and
+            $ExpectedThumbprint -and
+            $sig.SignerCertificate.Thumbprint -eq $ExpectedThumbprint
+        ) {
+            $isAcceptedStatus = $true
+        }
+
+        if (
+            $isAcceptedStatus -and
             $sig.SignerCertificate -and
             (-not $ExpectedThumbprint -or $sig.SignerCertificate.Thumbprint -eq $ExpectedThumbprint)
         ) {
@@ -168,12 +154,6 @@ try {
             throw "Certificate cleanup verification failed for thumbprint $ExpectedThumbprint"
         } else {
             Write-Host "[OK] Certificate was properly cleaned up" -ForegroundColor Green
-        }
-    }
-
-    if ($CleanupTrustedCertificate -and $ExpectedThumbprint) {
-        foreach ($storeName in @('TrustedPublisher', 'Root')) {
-            Remove-CertificateFromCurrentUserStore -StoreName $storeName -Thumbprint $ExpectedThumbprint
         }
     }
 } catch {

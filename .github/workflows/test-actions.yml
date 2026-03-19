@@ -59,7 +59,7 @@ jobs:
         shell: pwsh
         run: |
           $scriptPath = "${{ github.workspace }}\.github\scripts\Create-TestCertificate.ps1"
-          & $scriptPath -Mode ImportToStore -Subject "CN=TestCodeSignCert" -TrustForVerification
+          & $scriptPath -Mode ImportToStore -Subject "CN=TestCodeSignCert"
 
       - name: Test Code Sign Action (Test Mode detects unsigned files)
         id: codesign-test-mode-before-signing
@@ -91,6 +91,8 @@ jobs:
           recurse: true
           test_only: true
           fail_on_invalid: true
+          cert_thumbprint: ${{ steps.create-signing-cert.outputs.certificate_thumbprint }}
+          allow_untrusted_root_in_test: true
 
       - name: Verify signatures
         shell: pwsh
@@ -99,8 +101,8 @@ jobs:
           $thumbprint = "${{ steps.create-signing-cert.outputs.certificate_thumbprint }}"
           & $scriptPath -Path "test-scripts" `
           -ExpectedThumbprint $thumbprint `
-          -ExpectCertificateCleanup `
-          -CleanupTrustedCertificate
+          -AllowUntrustedRoot `
+          -ExpectCertificateCleanup
 
   test-deploy-action:
     name: Test Deploy Action

@@ -32,11 +32,19 @@
 .PARAMETER FailOnInvalid
     When testing signatures, throw an error if any files have invalid signatures.
 
+.PARAMETER AllowUntrustedRootInTest
+    In test-only mode, accept signatures with status UnknownError only when the
+    signer thumbprint matches the expected certificate and the status message
+    indicates an untrusted root.
+
 .EXAMPLE
     Sign-PowerShellFiles.ps1 -CleanupCertificate
 
 .EXAMPLE
     Sign-PowerShellFiles.ps1 -Path "C:\Scripts" -CertThumbprint "ABC123..." -CleanupCertificate
+
+.EXAMPLE
+    Sign-PowerShellFiles.ps1 -TestOnly -FailOnInvalid -CertThumbprint "ABC123..." -AllowUntrustedRootInTest
 #>
 
 [CmdletBinding()]
@@ -66,7 +74,10 @@ param(
     [switch]$TestOnly,
 
     [Parameter()]
-    [switch]$FailOnInvalid
+    [switch]$FailOnInvalid,
+
+    [Parameter()]
+    [switch]$AllowUntrustedRootInTest
 )
 
 Set-StrictMode -Version Latest
@@ -202,22 +213,45 @@ function Test-PowerShellFileSignature {
         [System.IO.FileInfo[]]$Files,
 
         [Parameter()]
-        [switch]$FailOnInvalid
+        [switch]$FailOnInvalid,
+
+        [Parameter()]
+        [string]$ExpectedSignerThumbprint,
+
+        [Parameter()]
+        [switch]$AllowUntrustedRootInTest
     )
 
     $validSignatures = @()
     $invalidSignatures = @()
+    $untrustedRootMessagePattern = 'terminated in a root certificate which is not trusted by the trust provider'
 
     foreach ($file in $Files) {
         try {
             $sig = Get-AuthenticodeSignature -FilePath $file.FullName
 
-            if ($sig.Status -eq 'Valid') {
+            $isValidSignature = $sig.Status -eq 'Valid'
+
+            if (
+                -not $isValidSignature -and
+                $AllowUntrustedRootInTest -and
+                $sig.Status -eq 'UnknownError' -and
+                $sig.StatusMessage -match $untrustedRootMessagePattern -and
+                $sig.SignerCertificate -and
+                $ExpectedSignerThumbprint -and
+                $sig.SignerCertificate.Thumbprint -eq $ExpectedSignerThumbprint
+            ) {
+                $isValidSignature = $true
+            }
+
+            if ($isValidSignature) {
                 Write-Host "$($file.Name)" -ForegroundColor Green
                 $validSignatures += [PSCustomObject]@{
                     File = $file.FullName
                     Status = $sig.Status
+                    Message = $sig.StatusMessage
                     SignerCertificate = $sig.SignerCertificate.Subject
+                    SignerThumbprint = $sig.SignerCertificate.Thumbprint
                     TimeStamperCertificate = if ($sig.TimeStamperCertificate) { $sig.TimeStamperCertificate.Subject } else { "None" }
                 }
             } else {
@@ -335,10 +369,18 @@ $exitCode = 0
 try {
     Write-Host "Starting PowerShell file signing process..." -ForegroundColor Cyan
 
+    if ($AllowUntrustedRootInTest -and -not $TestOnly) {
+        throw "AllowUntrustedRootInTest can only be used with TestOnly"
+    }
+
+    if ($AllowUntrustedRootInTest -and -not $CertThumbprint) {
+        throw "AllowUntrustedRootInTest requires CertThumbprint so the signer thumbprint can be verified"
+    }
+
     $files = Find-PowerShellFile -Path $Path -Recurse:$Recurse -FileMatch $FileMatch -ExcludeDirs $ExcludeDirs
 
     if ($TestOnly) {
-        $signatureResults = Test-PowerShellFileSignature -Files $files -FailOnInvalid:$FailOnInvalid
+        $signatureResults = Test-PowerShellFileSignature -Files $files -FailOnInvalid:$FailOnInvalid -ExpectedSignerThumbprint $CertThumbprint -AllowUntrustedRootInTest:$AllowUntrustedRootInTest
         if ($signatureResults.InvalidSignatures.Count -gt 0) {
             Write-Host "Test mode detected unsigned or invalid files" -ForegroundColor Yellow
             $exitCode = 1
