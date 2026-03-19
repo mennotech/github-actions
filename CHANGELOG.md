@@ -4,6 +4,11 @@ All notable changes to this repository will be documented in this file.
 
 The format is based on Keep a Changelog and the project follows Semantic Versioning.
 
+## [Unreleased]
+
+### Fixed
+- `codesign-files-windows` now evaluates excluded directories against repository-relative paths instead of full runner workspace paths, preventing false exclusions on GitHub Actions runners.
+
 ## [1.0.0] - 2026-03-12
 
 ### Added

@@ -98,6 +98,40 @@ function Get-CodeSigningCertificate {
     return $cert
 }
 
+function Test-PathMatchesExcludedDirectory {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$RelativePath,
+
+        [Parameter()]
+        [string[]]$ExcludeDirs = @()
+    )
+
+    # Normalize paths to use forward slashes for consistent comparison
+    # This only affects the comparison logic and does not change any actual file paths used elsewhere
+    $normalizedRelativePath = $RelativePath.Replace([System.IO.Path]::DirectorySeparatorChar, '/')
+    $pathSegments = $normalizedRelativePath -split '/'
+
+    foreach ($excludeDir in $ExcludeDirs) {
+        $normalizedExcludeDir = $excludeDir.Trim().Replace([System.IO.Path]::DirectorySeparatorChar, '/').Trim('/')
+        if ([string]::IsNullOrWhiteSpace($normalizedExcludeDir)) {
+            continue
+        }
+
+        if ($normalizedRelativePath -eq $normalizedExcludeDir -or $normalizedRelativePath.StartsWith("$normalizedExcludeDir/")) {
+            return $excludeDir
+        }
+
+        if ($pathSegments -contains $normalizedExcludeDir) {
+            return $excludeDir
+        }
+    }
+
+    return $null
+}
+
 function Find-PowerShellFile {
     [CmdletBinding()]
     [OutputType([System.IO.FileInfo[]])]
@@ -123,7 +157,9 @@ function Find-PowerShellFile {
         $searchParams.Recurse = $true
     }
 
-    Write-Host "Searching for PowerShell files in: $((Resolve-Path $Path).Path)" -ForegroundColor Gray
+    $resolvedPath = (Resolve-Path $Path).Path
+
+    Write-Host "Searching for PowerShell files in: $resolvedPath" -ForegroundColor Gray
     if ($ExcludeDirs.Count -gt 0) {
         Write-Host "  Excluding directories: $($ExcludeDirs -join ', ')" -ForegroundColor Gray
     }
@@ -131,11 +167,11 @@ function Find-PowerShellFile {
     $files = foreach ($pattern in $FileMatch) {
         Get-ChildItem @searchParams -Filter $pattern | Where-Object {
             $filePath = $_.FullName
-            foreach ($excludeDir in $ExcludeDirs) {
-                if ($filePath -like "*\$excludeDir\*" -or $filePath -like "*/$excludeDir/*") {
-                    Write-Host "Excluding file in directory '$excludeDir': $filePath" -ForegroundColor Yellow
-                    return $false
-                }
+            $relativePath = [System.IO.Path]::GetRelativePath($resolvedPath, $filePath)
+            $matchedExcludeDir = Test-PathMatchesExcludedDirectory -RelativePath $relativePath -ExcludeDirs $ExcludeDirs
+            if ($matchedExcludeDir) {
+                Write-Host "Excluding file in directory '$matchedExcludeDir': $relativePath" -ForegroundColor Yellow
+                return $false
             }
 
             return $true
