@@ -72,6 +72,10 @@ $ExcludeDirs = Get-StringArrayParameterFromEnvironment -BoundParameters $PSBound
 $ExcludeFiles = Get-StringArrayParameterFromEnvironment -BoundParameters $PSBoundParameters -ParameterName 'ExcludeFiles' -EnvironmentVariableName 'EXCLUDE_FILES' -CurrentValue $ExcludeFiles
 $RobocopyOptions = Get-StringArrayParameterFromEnvironment -BoundParameters $PSBoundParameters -ParameterName 'RobocopyOptions' -EnvironmentVariableName 'ROBOCOPY_OPTIONS' -CurrentValue $RobocopyOptions
 
+$ExcludeDirs = ConvertTo-StringArray -InputObject $ExcludeDirs
+$ExcludeFiles = ConvertTo-StringArray -InputObject $ExcludeFiles
+$RobocopyOptions = ConvertTo-StringArray -InputObject $RobocopyOptions
+
 try {
     Write-Host "Starting deployment process..." -ForegroundColor Cyan
     Write-Host "  Source: $SourcePath" -ForegroundColor Gray
