@@ -13,6 +13,70 @@ $ErrorActionPreference = 'Stop'
 
 <#
 .SYNOPSIS
+    Coerces a value of unknown shape into a trimmed, non-empty string array.
+
+.DESCRIPTION
+    Safely converts null, a single string, or an existing array into a [string[]].
+    Null input returns an empty array. A blank string returns an empty array. A
+    non-blank string returns a single-element array. Any other input is enumerated
+    and each element is converted to a trimmed string, with null or blank items
+    discarded.
+
+.PARAMETER InputObject
+    The value to coerce. Accepts null, a string, or any enumerable.
+
+.EXAMPLE
+    ConvertTo-StringArray -InputObject $null
+    # Returns @()
+
+.EXAMPLE
+    ConvertTo-StringArray -InputObject 'foo'
+    # Returns @('foo')
+
+.EXAMPLE
+    ConvertTo-StringArray -InputObject @('foo', '', 'bar')
+    # Returns @('foo', 'bar')
+#>
+function ConvertTo-StringArray {
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param(
+        [Parameter()]
+        [AllowNull()]
+        [AllowEmptyCollection()]
+        [object]$InputObject
+    )
+
+    if ($null -eq $InputObject) {
+        Write-Output -NoEnumerate ([string[]]@())
+        return
+    }
+
+    if ($InputObject -is [string]) {
+        $trimmed = $InputObject.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed)) {
+            Write-Output -NoEnumerate ([string[]]@())
+            return
+        }
+        Write-Output -NoEnumerate ([string[]]@($trimmed))
+        return
+    }
+
+    $result = [System.Collections.Generic.List[string]]::new()
+    foreach ($item in $InputObject) {
+        if ($null -eq $item) {
+            continue
+        }
+        $trimmedItem = ([string]$item).Trim()
+        if (-not [string]::IsNullOrWhiteSpace($trimmedItem)) {
+            $result.Add($trimmedItem)
+        }
+    }
+    Write-Output -NoEnumerate ([string[]]$result)
+}
+
+<#
+.SYNOPSIS
     Resolves a string array parameter from bound values or an environment variable.
 
 .DESCRIPTION
@@ -63,16 +127,21 @@ function Get-StringArrayParameterFromEnvironment {
     )
 
     if ($BoundParameters.ContainsKey($ParameterName)) {
-        return [string[]]$CurrentValue
+        $coerced = ConvertTo-StringArray -InputObject $CurrentValue
+        Write-Output -NoEnumerate $coerced
+        return
     }
 
     $environmentValue = [System.Environment]::GetEnvironmentVariable($EnvironmentVariableName)
     if ($null -eq $environmentValue) {
-        return [string[]]$CurrentValue
+        $coerced = ConvertTo-StringArray -InputObject $CurrentValue
+        Write-Output -NoEnumerate $coerced
+        return
     }
 
     if ([string]::IsNullOrWhiteSpace($environmentValue)) {
-        return [string[]]@()
+        Write-Output -NoEnumerate ([string[]]@())
+        return
     }
 
     $resolvedValues = [System.Collections.Generic.List[string]]::new()
@@ -83,7 +152,7 @@ function Get-StringArrayParameterFromEnvironment {
         }
     }
 
-    return [string[]]$resolvedValues
+    Write-Output -NoEnumerate ([string[]]$resolvedValues)
 }
 
 <#
@@ -142,4 +211,4 @@ function Get-EffectiveExcludeDirList {
     return [string[]]$effectiveExcludeDirs
 }
 
-Export-ModuleMember -Function Get-StringArrayParameterFromEnvironment, Get-EffectiveExcludeDirList
+Export-ModuleMember -Function ConvertTo-StringArray, Get-StringArrayParameterFromEnvironment, Get-EffectiveExcludeDirList
