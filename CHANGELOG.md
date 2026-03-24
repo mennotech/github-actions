@@ -6,6 +6,16 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-03-24
+
+### Fixed
+- `deploy-files-windows` no longer throws `The property 'Count' cannot be found on this object` when `exclude_dirs`, `exclude_files`, or `robocopy_options` inputs are empty or contain a single value. Under `Set-StrictMode -Version Latest`, PowerShell silently unwraps single-element and empty arrays returned via the pipeline, causing downstream `.Count` calls to fail against a bare string or `$null`. The shared `Get-StringArrayParameterFromEnvironment` helper now uses `Write-Output -NoEnumerate` on every return path to preserve array identity.
+
+### Added
+- `ConvertTo-StringArray` exported from `shared/GitHubActions.Common.psm1`: coerces any null, string, or array input into a trimmed, non-empty `[string[]]`. Used internally by `Get-StringArrayParameterFromEnvironment` to guarantee a non-null `string[]` on every code path.
+- Pester 5 unit tests in `shared/GitHubActions.Common.Tests.ps1` covering the null, blank, single-value, and multi-value coercion paths for both `ConvertTo-StringArray` and `Get-StringArrayParameterFromEnvironment`.
+- `unit-tests` CI job in `.github/workflows/validate-syntax.yml` runs the Pester test suite on every push and pull request.
+
 ## [1.1.1] - 2026-03-19
 
 ### Security
@@ -85,6 +95,7 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 ### Security
 - Added certificate cleanup support and explicit guidance to remove imported signing certificates after use.
 
+[1.1.2]: https://github.com/mennotech/github-actions/releases/tag/v1.1.2
 [1.1.1]: https://github.com/mennotech/github-actions/releases/tag/v1.1.1
 [1.1.0]: https://github.com/mennotech/github-actions/releases/tag/v1.1.0
 [1.0.2]: https://github.com/mennotech/github-actions/releases/tag/v1.0.2
