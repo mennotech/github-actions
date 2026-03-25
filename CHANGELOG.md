@@ -9,18 +9,9 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 ## [1.2.0] - 2026-03-25
 
 ### Added
-- `build-repo-matrix` composite action: converts a newline-separated list of
-  `owner/repo` strings into a compact JSON array suitable for a GitHub Actions
-  matrix strategy. Outputs a single `matrix` value consumed directly by
-  `strategy.matrix`.
-- `dispatch-repository-event` composite action: sends a `repository_dispatch`
-  event to a target repository via the GitHub API. Exposes `status_code` and
-  `success` outputs so callers can gate subsequent steps on acceptance.
-- `wait-for-downstream-run` composite action: polls a target repository for a
-  `repository_dispatch`-triggered workflow run created at or after a supplied
-  timestamp and waits for it to reach a terminal state. Exposes `run_id`,
-  `run_url`, `conclusion`, and `timed_out` outputs.
-
+- `build-repo-matrix` composite action: converts a newline-separated list of `owner/repo` strings into a compact JSON array suitable for a GitHub Actions matrix strategy. Outputs a single `matrix` value consumed directly by `strategy.matrix`.
+- `dispatch-repository-event` composite action: sends a `repository_dispatch` event to a target repository via the GitHub API. Exposes `status_code` and `success` outputs so callers can gate subsequent steps on acceptance.
+- `wait-for-downstream-run` composite action: polls a target repository for a `repository_dispatch`-triggered workflow run created at or after a supplied timestamp and waits for it to reach a terminal state. Exposes `run_id`, `run_url`, `conclusion`, and `timed_out` outputs.
 
 ## [1.1.2] - 2026-03-24
 
