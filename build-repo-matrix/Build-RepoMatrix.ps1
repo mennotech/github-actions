@@ -44,8 +44,14 @@ if (-not [string]::IsNullOrWhiteSpace($DownstreamRepos)) {
         }
 
         $parts = $repo -split '/'
+        if ($parts.Count -ne 2 -or
+            [string]::IsNullOrWhiteSpace($parts[0]) -or
+            [string]::IsNullOrWhiteSpace($parts[1])) {
+            throw "Invalid downstream repo entry '$repo'. Expected format 'owner/repo'."
+        }
+
         $owner = $parts[0]
-        $name = $parts[-1]
+        $name  = $parts[1]
 
         $matrix += [pscustomobject]@{
             owner = $owner
