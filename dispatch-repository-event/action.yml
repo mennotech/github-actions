@@ -53,48 +53,4 @@ runs:
         EVENT_TYPE: ${{ inputs.event_type }}
         CLIENT_PAYLOAD: ${{ inputs.client_payload }}
       run: |
-        Set-StrictMode -Version Latest
-        $ErrorActionPreference = 'Stop'
-
-        try {
-          $clientPayloadObject = $env:CLIENT_PAYLOAD | ConvertFrom-Json -Depth 100
-        }
-        catch {
-          throw "Input 'client_payload' must be valid JSON. Error: $($_.Exception.Message)"
-        }
-
-        $requestBody = @{
-          event_type     = $env:EVENT_TYPE
-          client_payload = $clientPayloadObject
-        } | ConvertTo-Json -Compress -Depth 100
-
-        $headers = @{
-          Accept                 = 'application/vnd.github+json'
-          Authorization          = "Bearer $($env:DISPATCH_TOKEN)"
-          'X-GitHub-Api-Version' = '2022-11-28'
-        }
-
-        $uri = "https://api.github.com/repos/$($env:OWNER)/$($env:REPO)/dispatches"
-        $iwrParams = @{
-          Method      = 'Post'
-          Uri         = $uri
-          Headers     = $headers
-          Body        = $requestBody
-          ContentType = 'application/json'
-        }
-        $response = Invoke-WebRequest @iwrParams -SkipHttpErrorCheck
-        $statusCode = [int]$response.StatusCode
-
-        "status_code=$statusCode" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8NoBOM -Append
-
-        if ($statusCode -eq 204) {
-          Write-Host "Dispatch accepted (HTTP 204) for $($env:OWNER)/$($env:REPO)"
-          'success=true' | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8NoBOM -Append
-        }
-        else {
-          Write-Host "Dispatch FAILED (HTTP $statusCode) for $($env:OWNER)/$($env:REPO):"
-          if (-not [string]::IsNullOrWhiteSpace($response.Content)) {
-            Write-Host $response.Content
-          }
-          'success=false' | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8NoBOM -Append
-        }
+        & "${{ github.action_path }}/Send-RepositoryDispatch.ps1"
