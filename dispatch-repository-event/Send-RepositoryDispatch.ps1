@@ -60,6 +60,23 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Validate required inputs
+if ([string]::IsNullOrWhiteSpace($Token)) {
+    throw "Missing required input: 'token' (or environment variable DISPATCH_TOKEN)"
+}
+if ([string]::IsNullOrWhiteSpace($Owner)) {
+    throw "Missing required input: 'owner' (or environment variable OWNER)"
+}
+if ([string]::IsNullOrWhiteSpace($Repo)) {
+    throw "Missing required input: 'repo' (or environment variable REPO)"
+}
+if ([string]::IsNullOrWhiteSpace($EventType)) {
+    throw "Missing required input: 'event_type' (or environment variable EVENT_TYPE)"
+}
+if ($EventType.Length -gt 100) {
+    throw "Input 'event_type' must not exceed 100 characters (got $($EventType.Length))"
+}
+
 try {
     $clientPayloadObject = $ClientPayload | ConvertFrom-Json -Depth 100
 }
