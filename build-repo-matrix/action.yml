@@ -47,5 +47,5 @@ runs:
           }
         }
 
-        $matrixJson = $matrix | ConvertTo-Json -Compress -Depth 3
+        $matrixJson = ConvertTo-Json -InputObject @($matrix) -Compress -Depth 3
         "matrix=$matrixJson" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8NoBOM -Append
