@@ -34,29 +34,31 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+if ([string]::IsNullOrWhiteSpace($DownstreamRepos)) {
+    throw "DownstreamRepos input is required and cannot be empty or whitespace. Provide at least one 'owner/repo' entry."
+}
+
 $matrix = @()
 
-if (-not [string]::IsNullOrWhiteSpace($DownstreamRepos)) {
-    foreach ($line in ($DownstreamRepos -split "`r?`n")) {
-        $repo = $line.Trim()
-        if ([string]::IsNullOrWhiteSpace($repo)) {
-            continue
-        }
+foreach ($line in ($DownstreamRepos -split "`r?`n")) {
+    $repo = $line.Trim()
+    if ([string]::IsNullOrWhiteSpace($repo)) {
+        continue
+    }
 
-        $parts = $repo -split '/'
-        if ($parts.Count -ne 2 -or
-            [string]::IsNullOrWhiteSpace($parts[0]) -or
-            [string]::IsNullOrWhiteSpace($parts[1])) {
-            throw "Invalid downstream repo entry '$repo'. Expected format 'owner/repo'."
-        }
+    $parts = $repo -split '/'
+    if ($parts.Count -ne 2 -or
+        [string]::IsNullOrWhiteSpace($parts[0]) -or
+        [string]::IsNullOrWhiteSpace($parts[1])) {
+        throw "Invalid downstream repo entry '$repo'. Expected format 'owner/repo'."
+    }
 
-        $owner = $parts[0]
-        $name  = $parts[1]
+    $owner = $parts[0]
+    $name  = $parts[1]
 
-        $matrix += [pscustomobject]@{
-            owner = $owner
-            repo  = $name
-        }
+    $matrix += [pscustomobject]@{
+        owner = $owner
+        repo  = $name
     }
 }
 
