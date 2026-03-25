@@ -45,7 +45,7 @@ runs:
   steps:
     - name: Send dispatch event
       id: dispatch
-      shell: bash
+      shell: pwsh
       env:
         DISPATCH_TOKEN: ${{ inputs.token }}
         OWNER: ${{ inputs.owner }}
@@ -53,30 +53,41 @@ runs:
         EVENT_TYPE: ${{ inputs.event_type }}
         CLIENT_PAYLOAD: ${{ inputs.client_payload }}
       run: |
-        set -euo pipefail
+        Set-StrictMode -Version Latest
+        $ErrorActionPreference = 'Stop'
 
-        request_body="$(jq -cn \
-          --arg event_type "${EVENT_TYPE}" \
-          --argjson client_payload "${CLIENT_PAYLOAD}" \
-          '{event_type: $event_type, client_payload: $client_payload}')"
+        try {
+          $clientPayloadObject = $env:CLIENT_PAYLOAD | ConvertFrom-Json -Depth 100
+        }
+        catch {
+          throw "Input 'client_payload' must be valid JSON. Error: $($_.Exception.Message)"
+        }
 
-        response_file="$(mktemp)"
-        status_code="$(curl -sS -o "${response_file}" -w "%{http_code}" -X POST \
-          -H "Accept: application/vnd.github+json" \
-          -H "Authorization: Bearer ${DISPATCH_TOKEN}" \
-          -H "X-GitHub-Api-Version: 2022-11-28" \
-          "https://api.github.com/repos/${OWNER}/${REPO}/dispatches" \
-          -d "${request_body}")"
+        $requestBody = @{
+          event_type     = $env:EVENT_TYPE
+          client_payload = $clientPayloadObject
+        } | ConvertTo-Json -Compress -Depth 100
 
-        echo "status_code=${status_code}" >> "${GITHUB_OUTPUT}"
+        $headers = @{
+          Accept                 = 'application/vnd.github+json'
+          Authorization          = "Bearer $($env:DISPATCH_TOKEN)"
+          'X-GitHub-Api-Version' = '2022-11-28'
+        }
 
-        if [ "${status_code}" = "204" ]; then
-          echo "Dispatch accepted (HTTP 204) for ${OWNER}/${REPO}"
-          echo "success=true" >> "${GITHUB_OUTPUT}"
-        else
-          echo "Dispatch FAILED (HTTP ${status_code}) for ${OWNER}/${REPO}:"
-          cat "${response_file}"
-          echo "success=false" >> "${GITHUB_OUTPUT}"
-        fi
+        $uri = "https://api.github.com/repos/$($env:OWNER)/$($env:REPO)/dispatches"
+        $response = Invoke-WebRequest -Method Post -Uri $uri -Headers $headers -Body $requestBody -ContentType 'application/json' -SkipHttpErrorCheck
+        $statusCode = [int]$response.StatusCode
 
-        rm -f "${response_file}"
+        "status_code=$statusCode" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8NoBOM -Append
+
+        if ($statusCode -eq 204) {
+          Write-Host "Dispatch accepted (HTTP 204) for $($env:OWNER)/$($env:REPO)"
+          'success=true' | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8NoBOM -Append
+        }
+        else {
+          Write-Host "Dispatch FAILED (HTTP $statusCode) for $($env:OWNER)/$($env:REPO):"
+          if (-not [string]::IsNullOrWhiteSpace($response.Content)) {
+            Write-Host $response.Content
+          }
+          'success=false' | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8NoBOM -Append
+        }
