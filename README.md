@@ -89,6 +89,14 @@ steps:
 
 ## Available Actions
 
+### Workflow Orchestration Actions (Cross-Platform)
+
+| Action | Purpose | Documentation |
+|--------|---------|---------------|
+| [`build-repo-matrix`](./build-repo-matrix/) | Convert newline-separated `owner/repo` list into JSON array for GitHub Actions matrix strategy | [📖 Details](./build-repo-matrix/action.yml) |
+| [`dispatch-repository-event`](./dispatch-repository-event/) | Send `repository_dispatch` event to trigger downstream workflows | [📖 Details](./dispatch-repository-event/action.yml) |
+| [`wait-for-downstream-run`](./wait-for-downstream-run/) | Poll and wait for downstream `repository_dispatch`-triggered workflow run to complete | [📖 Details](./wait-for-downstream-run/action.yml) |
+
 ### Platform-Specific Actions (Windows)
 > **Migration Complete**: Actions have been renamed with `-windows` suffix to support future cross-platform expansion.
 
