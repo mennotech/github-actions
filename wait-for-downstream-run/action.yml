@@ -69,7 +69,7 @@ runs:
   steps:
     - name: Poll for run completion
       id: poll
-      shell: bash
+      shell: pwsh
       env:
         POLL_TOKEN: ${{ inputs.token }}
         OWNER: ${{ inputs.owner }}
@@ -78,64 +78,4 @@ runs:
         TIMEOUT_SECONDS: ${{ inputs.timeout_seconds }}
         POLL_INTERVAL_SECONDS: ${{ inputs.poll_interval_seconds }}
       run: |
-        set -euo pipefail
-
-        timeout_at=$(( $(date +%s) + TIMEOUT_SECONDS ))
-        found_run=0
-        run_finished=0
-        run_id=""
-        run_url=""
-        conclusion=""
-
-        while [ "$(date +%s)" -lt "${timeout_at}" ]; do
-          runs_json="$(curl -sS \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${POLL_TOKEN}" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${OWNER}/${REPO}/actions/runs?event=repository_dispatch&per_page=50")"
-
-          selected_run="$(echo "${runs_json}" | jq -c --arg since "${DISPATCHED_AT}" '
-            .workflow_runs
-            | map(select(.created_at >= $since))
-            | sort_by(.created_at)
-            | reverse
-            | .[0] // empty
-          ')"
-
-          if [ -n "${selected_run}" ]; then
-            found_run=1
-            run_id="$(echo "${selected_run}" | jq -r '.id')"
-            run_name="$(echo "${selected_run}" | jq -r '.name')"
-            run_status="$(echo "${selected_run}" | jq -r '.status')"
-            run_conclusion="$(echo "${selected_run}" | jq -r '.conclusion // "null"')"
-            run_url="$(echo "${selected_run}" | jq -r '.html_url')"
-
-            echo "Run found: id=${run_id} name=${run_name} status=${run_status} conclusion=${run_conclusion}"
-            echo "Run URL: ${run_url}"
-
-            if [ "${run_status}" = "completed" ]; then
-              run_finished=1
-              conclusion="${run_conclusion}"
-              break
-            fi
-          else
-            remaining=$(( timeout_at - $(date +%s) ))
-            echo "No run found yet for ${OWNER}/${REPO}; waiting ${POLL_INTERVAL_SECONDS}s (${remaining}s remaining)"
-          fi
-
-          sleep "${POLL_INTERVAL_SECONDS}"
-        done
-
-        timed_out="false"
-        if [ "${found_run}" = "0" ]; then
-          echo "Timed out waiting for a matching run to appear for ${OWNER}/${REPO}"
-          timed_out="true"
-        elif [ "${run_finished}" = "0" ]; then
-          echo "Timed out waiting for run ${run_id} to complete for ${OWNER}/${REPO}"
-          timed_out="true"
-        fi
-
-        echo "run_id=${run_id}" >> "${GITHUB_OUTPUT}"
-        echo "run_url=${run_url}" >> "${GITHUB_OUTPUT}"
-        echo "conclusion=${conclusion}" >> "${GITHUB_OUTPUT}"
-        echo "timed_out=${timed_out}" >> "${GITHUB_OUTPUT}"
+        & "${{ github.action_path }}/Wait-ForDownstreamRun.ps1"
