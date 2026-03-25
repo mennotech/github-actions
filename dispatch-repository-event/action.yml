@@ -1,0 +1,56 @@
+---
+name: 'Dispatch Repository Event'
+description: >
+  Send a repository_dispatch event to a GitHub repository and report the HTTP
+  status. Requires a token with Contents: write on the target repository.
+
+inputs:
+  token:
+    description: >
+      GitHub token (or GitHub App token) with Contents: write on the target
+      repository.
+    required: true
+
+  owner:
+    description: 'Target organization or user account.'
+    required: true
+
+  repo:
+    description: 'Target repository name (without the owner prefix).'
+    required: true
+
+  event_type:
+    description: 'The repository_dispatch event type string (max 100 chars).'
+    required: true
+
+  client_payload:
+    description: >
+      JSON object string to send as client_payload. Must be valid JSON.
+      Defaults to an empty object.
+    required: false
+    default: '{}'
+
+outputs:
+  status_code:
+    description: 'HTTP status code returned by the GitHub API dispatch endpoint.'
+    value: ${{ steps.dispatch.outputs.status_code }}
+
+  success:
+    description: >
+      'true' if the dispatch was accepted (HTTP 204), 'false' otherwise.
+    value: ${{ steps.dispatch.outputs.success }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Send dispatch event
+      id: dispatch
+      shell: pwsh
+      env:
+        DISPATCH_TOKEN: ${{ inputs.token }}
+        OWNER: ${{ inputs.owner }}
+        REPO: ${{ inputs.repo }}
+        EVENT_TYPE: ${{ inputs.event_type }}
+        CLIENT_PAYLOAD: ${{ inputs.client_payload }}
+      run: |
+        & "${{ github.action_path }}/Send-RepositoryDispatch.ps1"

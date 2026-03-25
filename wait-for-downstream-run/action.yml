@@ -1,0 +1,81 @@
+---
+name: 'Wait for Downstream Run'
+description: >
+  Poll a repository for a repository_dispatch workflow run that appeared at or
+  after a given timestamp and wait for it to complete. Requires a token with
+  Actions: read on the target repository.
+
+inputs:
+  token:
+    description: >
+      GitHub token (or GitHub App token) with Actions: read on the target
+      repository.
+    required: true
+
+  owner:
+    description: 'Target organization or user account.'
+    required: true
+
+  repo:
+    description: 'Target repository name (without the owner prefix).'
+    required: true
+
+  dispatched_at:
+    description: >
+      ISO 8601 UTC timestamp (e.g. 2026-03-25T14:00:00Z). Only workflow runs
+      created at or after this time are considered.
+    required: true
+
+  timeout_seconds:
+    description: >
+      Maximum number of seconds to wait for the run to appear and reach a
+      completed status.
+    required: false
+    default: '1200'
+
+  poll_interval_seconds:
+    description: 'Seconds to wait between polling attempts.'
+    required: false
+    default: '20'
+
+outputs:
+  run_id:
+    description: >
+      Numeric ID of the downstream workflow run found. Empty string if the
+      action timed out before a matching run appeared.
+    value: ${{ steps.poll.outputs.run_id }}
+
+  run_url:
+    description: >
+      HTML URL of the downstream workflow run. Empty string if timed out
+      before a matching run appeared.
+    value: ${{ steps.poll.outputs.run_url }}
+
+  conclusion:
+    description: >
+      Final conclusion of the completed run (success, failure, cancelled,
+      skipped, timed_out, action_required, neutral). Empty string if the
+      action timed out before the run completed.
+    value: ${{ steps.poll.outputs.conclusion }}
+
+  timed_out:
+    description: >
+      'true' if polling timed out before the run appeared or completed,
+      'false' otherwise.
+    value: ${{ steps.poll.outputs.timed_out }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Poll for run completion
+      id: poll
+      shell: pwsh
+      env:
+        POLL_TOKEN: ${{ inputs.token }}
+        OWNER: ${{ inputs.owner }}
+        REPO: ${{ inputs.repo }}
+        DISPATCHED_AT: ${{ inputs.dispatched_at }}
+        TIMEOUT_SECONDS: ${{ inputs.timeout_seconds }}
+        POLL_INTERVAL_SECONDS: ${{ inputs.poll_interval_seconds }}
+      run: |
+        & "${{ github.action_path }}/Wait-ForDownstreamRun.ps1"

@@ -1,0 +1,26 @@
+---
+name: 'Build Repo Matrix'
+description: >
+  Converts a newline-separated list of org/repo strings into a compact JSON array
+  suitable for use as a GitHub Actions matrix: [{"owner":..., "repo":...}].
+
+inputs:
+  downstream_repos:
+    description: 'Newline-separated list of org/repo strings.'
+    required: true
+
+outputs:
+  matrix:
+    description: 'Compact JSON array of {owner, repo} objects.'
+    value: ${{ steps.build.outputs.matrix }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Build matrix
+      id: build
+      shell: pwsh
+      env:
+        DOWNSTREAM_REPOS: ${{ inputs.downstream_repos }}
+      run: |
+        & "${{ github.action_path }}/Build-RepoMatrix.ps1"
