@@ -75,7 +75,14 @@ runs:
         }
 
         $uri = "https://api.github.com/repos/$($env:OWNER)/$($env:REPO)/dispatches"
-        $response = Invoke-WebRequest -Method Post -Uri $uri -Headers $headers -Body $requestBody -ContentType 'application/json' -SkipHttpErrorCheck
+        $iwrParams = @{
+          Method      = 'Post'
+          Uri         = $uri
+          Headers     = $headers
+          Body        = $requestBody
+          ContentType = 'application/json'
+        }
+        $response = Invoke-WebRequest @iwrParams -SkipHttpErrorCheck
         $statusCode = [int]$response.StatusCode
 
         "status_code=$statusCode" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8NoBOM -Append

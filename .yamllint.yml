@@ -6,7 +6,7 @@ extends: default
 
 rules:
   line-length:
-    max: 120  # Allow up to 100 characters per line (default is 80)
+    max: 120  # Allow up to 120 characters per line (default is 80)
 
   # Disable truthy rule for GitHub Actions workflows
   truthy: disable
