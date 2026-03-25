@@ -84,6 +84,11 @@ catch {
     throw "Input 'client_payload' must be valid JSON. Error: $($_.Exception.Message)"
 }
 
+if ($clientPayloadObject -isnot [PSCustomObject]) {
+    $receivedType = if ($null -eq $clientPayloadObject) { 'null' } else { $clientPayloadObject.GetType().Name }
+    throw "Input 'client_payload' must be a JSON object (e.g., '{}/{}'), not a $receivedType"
+}
+
 $requestBody = @{
     event_type     = $EventType
     client_payload = $clientPayloadObject

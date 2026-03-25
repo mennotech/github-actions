@@ -80,16 +80,27 @@ if ($PollIntervalSeconds -le 0) {
 
 # Parse DispatchedAt as UTC DateTime — fail fast if not valid ISO 8601
 $dispatchedAtUtc = $null
+$iso8601Formats = @(
+    'O',  # Round-trip: 2026-03-25T14:00:00.0000000+00:00
+    'o',  # Round-trip (lowercase): 2026-03-25T14:00:00.0000000+00:00
+    's',  # Sortable: 2026-03-25T14:00:00
+    'u',  # Universal sortable: 2026-03-25 14:00:00Z
+    'yyyy-MM-ddTHH:mm:ssZ',    # With literal Z for UTC
+    'yyyy-MM-ddTHH:mm:ss.fffffffZ',  # With fractional seconds and Z
+    'yyyy-MM-ddTHH:mm:sszzz',  # With timezone offset
+    'yyyy-MM-ddTHH:mm:ss.fffffffzzz'  # With fractional seconds and timezone offset
+)
 try {
-    $dispatchedAtUtc = [System.DateTimeOffset]::Parse(
+    $dispatchedAtUtc = [System.DateTimeOffset]::ParseExact(
         $DispatchedAt,
+        $iso8601Formats,
         [System.Globalization.CultureInfo]::InvariantCulture,
         [System.Globalization.DateTimeStyles]::AssumeUniversal -bor
         [System.Globalization.DateTimeStyles]::AdjustToUniversal
     ).UtcDateTime
 }
 catch {
-    throw "Input 'dispatched_at' is not a valid ISO 8601 timestamp: '$DispatchedAt'. Error: $($_.Exception.Message)"
+    throw "Input 'dispatched_at' must be in ISO 8601 format: '$DispatchedAt'. Error: $($_.Exception.Message)"
 }
 
 $timeoutAt = (Get-Date).ToUniversalTime().AddSeconds($TimeoutSeconds)
@@ -147,7 +158,7 @@ while ((Get-Date).ToUniversalTime() -lt $timeoutAt) {
             $runUrl = [string]$selectedRun.html_url
             $runName = [string]$selectedRun.name
             $runStatus = [string]$selectedRun.status
-            $runConclusion = if ($null -eq $selectedRun.conclusion) { 'null' } else { [string]$selectedRun.conclusion }
+            $runConclusion = if ($null -eq $selectedRun.conclusion) { '' } else { [string]$selectedRun.conclusion }
 
             Write-Host "Run found: id=$runId name=$runName status=$runStatus conclusion=$runConclusion"
             Write-Host "Run URL: $runUrl"
@@ -168,7 +179,7 @@ while ((Get-Date).ToUniversalTime() -lt $timeoutAt) {
         $uri = "https://api.github.com/repos/$Owner/$Repo/actions/runs/$runId"
         $run = Invoke-RestMethod -Method Get -Uri $uri -Headers $headers
         $runStatus = [string]$run.status
-        $runConclusion = if ($null -eq $run.conclusion) { 'null' } else { [string]$run.conclusion }
+        $runConclusion = if ($null -eq $run.conclusion) { '' } else { [string]$run.conclusion }
 
         Write-Host "Polling run ${runId}: status=$runStatus conclusion=$runConclusion"
 
